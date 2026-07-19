@@ -1,0 +1,11 @@
+{
+  "name": "@kylin-aiops/api-client",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "generate": "openapi-typescript ../../services/ops-api/openapi.json -o src/schema.ts"
+  },
+  "devDependencies": {
+    "openapi-typescript": "^7.6.0"
+  }
+}

@@ -1,0 +1,7 @@
+route:
+  receiver: ops-api
+receivers:
+  - name: ops-api
+    webhook_configs:
+      - url: http://ops-api:8000/internal/v1/alerts
+        send_resolved: true

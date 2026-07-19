@@ -1,0 +1,15 @@
+server:
+  port: 8081
+spring:
+  application:
+    name: kylin-demo-service
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:db-01}:3306/ops_demo?connectTimeout=2000&socketTimeout=3000
+    username: ${MYSQL_USER:ops_demo}
+    password: ${MYSQL_PASSWORD:ops_demo_password}
+    hikari:
+      maximum-pool-size: 10
+      connection-timeout: 2000
+management:
+  endpoints.web.exposure.include: health,prometheus
+  tracing.sampling.probability: 1.0

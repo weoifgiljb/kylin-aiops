@@ -1,0 +1,2 @@
+Defaults:kylin-aiops !requiretty
+kylin-aiops ALL=(root) NOPASSWD: /usr/local/libexec/kylin-aiops/stop-fault-stressor *, /usr/local/libexec/kylin-aiops/remove-fault-file *, /usr/local/libexec/kylin-aiops/clear-fault-netem *, /usr/local/libexec/kylin-aiops/terminate-fault-db-sessions ops_fault, /usr/bin/systemctl restart kylin-demo-app.service, /usr/bin/systemctl reload nginx.service, /usr/sbin/nginx -t

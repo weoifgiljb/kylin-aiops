@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+[[ ${1:-} =~ ^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$ ]] || exit 64
+[[ ${2:-} =~ ^(eth|ens|enp)[A-Za-z0-9_.-]{1,31}$ ]] || exit 64
+record="/var/lib/kylin-aiops/faults/$1/netem.interface"
+[[ -f "$record" && "$(<"$record")" == "$2" ]] || exit 66
+tc qdisc del dev "$2" root handle 1: netem
+rm -f -- "$record"

@@ -1,0 +1,155 @@
+name: kylin-aiops
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-kylin_aiops}
+      POSTGRES_USER: ${POSTGRES_USER:-kylin_aiops}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=15d"]
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports: ["9090:9090"]
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    volumes:
+      - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+
+  loki:
+    image: grafana/loki:3.4.2
+    command: ["-config.file=/etc/loki/local-config.yaml"]
+    volumes:
+      - ./loki.yml:/etc/loki/local-config.yaml:ro
+      - loki-data:/loki
+
+  tempo:
+    image: grafana/tempo:2.7.1
+    command: ["-config.file=/etc/tempo.yml"]
+    volumes:
+      - ./tempo.yml:/etc/tempo.yml:ro
+      - tempo-data:/var/tempo
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.120.0
+    command: ["--config=/etc/otelcol/config.yml"]
+    volumes:
+      - ./otel-collector.yml:/etc/otelcol/config.yml:ro
+    ports: ["4317:4317", "4318:4318"]
+    depends_on: [tempo]
+
+  ops-api:
+    build:
+      context: ../..
+      dockerfile: infra/compose/Dockerfile.python
+    command: ["uvicorn", "kylin_aiops_api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      ACTION_SIGNING_SECRET: ${ACTION_SIGNING_SECRET:?set ACTION_SIGNING_SECRET}
+      DEMO_SEED: "false"
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz')"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+
+  model-service:
+    build:
+      context: ../..
+      dockerfile: infra/compose/Dockerfile.python
+    command: ["uvicorn", "kylin_aiops_model.app:app", "--host", "0.0.0.0", "--port", "8001"]
+    environment:
+      DEVICE_TARGET: ${DEVICE_TARGET:-CPU}
+
+  mcp-server:
+    build:
+      context: ../..
+      dockerfile: infra/compose/Dockerfile.python
+    command: ["kylin-aiops-mcp"]
+    environment:
+      OPS_API_URL: http://ops-api:8000
+      PROMETHEUS_URL: http://prometheus:9090
+      LOKI_URL: http://loki:3100
+      TEMPO_URL: http://tempo:3200
+    depends_on: [ops-api, prometheus, loki, tempo]
+
+  web:
+    build:
+      context: ../..
+      dockerfile: infra/compose/Dockerfile.web
+    ports: ["8080:8080"]
+    depends_on:
+      ops-api: {condition: service_healthy}
+
+  web-01:
+    image: nginx:1.27-alpine
+    profiles: ["lab"]
+    volumes:
+      - ../../lab/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports: ["18080:8080"]
+    depends_on: [app-01]
+
+  app-01:
+    build: ../../lab/demo-service
+    profiles: ["lab"]
+    environment:
+      JAVA_TOOL_OPTIONS: -javaagent:/opt/otel/opentelemetry-javaagent.jar
+      MYSQL_HOST: db-01
+      MYSQL_USER: ops_demo
+      MYSQL_PASSWORD: ops_demo_password
+      OTEL_SERVICE_NAME: kylin-demo-service
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+    volumes:
+      - ../offline/artifacts/opentelemetry-javaagent.jar:/opt/otel/opentelemetry-javaagent.jar:ro
+    depends_on:
+      db-01: {condition: service_healthy}
+
+  db-01:
+    image: mysql:8.4
+    profiles: ["lab"]
+    environment:
+      MYSQL_ROOT_PASSWORD: lab-root-password
+    volumes:
+      - ../../lab/mysql-init.sql:/docker-entrypoint-initdb.d/10-lab.sql:ro
+      - mysql-lab-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-plab-root-password"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  postgres-data:
+  redis-data:
+  prometheus-data:
+  loki-data:
+  tempo-data:
+  mysql-lab-data:

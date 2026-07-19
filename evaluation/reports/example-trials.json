@@ -1,0 +1,14 @@
+[
+  {
+    "experiment_id": "example-cpu-001",
+    "ground_truth_type": "cpu_saturation",
+    "predicted_type": "cpu_saturation",
+    "ground_truth_root": "web-01",
+    "predicted_roots": ["web-01", "app-01"],
+    "remediation_succeeded": true,
+    "ground_truth_severity": "high",
+    "predicted_severity": "high",
+    "ground_truth_edges": [["web-01", "app-01"]],
+    "predicted_edges": [["web-01", "app-01"]]
+  }
+]

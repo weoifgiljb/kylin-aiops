@@ -1,0 +1,22 @@
+[Unit]
+Description=Kylin AIOps node agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=kylin-aiops
+Group=kylin-aiops
+EnvironmentFile=/etc/kylin-aiops/agent.env
+ExecStart=/opt/kylin-aiops/venv/bin/kylin-aiops-agent
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/kylin-aiops /var/log/kylin-aiops
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target

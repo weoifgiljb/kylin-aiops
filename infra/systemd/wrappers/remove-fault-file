@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+[[ ${1:-} =~ ^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$ ]] || exit 64
+[[ ${2:-} == disk-fill.bin ]] || exit 64
+target="/var/lib/kylin-aiops/faults/$1/disk-fill.bin"
+[[ "$target" == /var/lib/kylin-aiops/faults/*/disk-fill.bin ]] || exit 70
+rm -f -- "$target"

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+[[ ${1:-} == ops_fault ]] || exit 64
+mysql --defaults-extra-file=/etc/kylin-aiops/mysql-admin.cnf --batch --skip-column-names \
+  -e "SELECT CONCAT('KILL ', id, ';') FROM information_schema.processlist WHERE user='ops_fault'" | mysql --defaults-extra-file=/etc/kylin-aiops/mysql-admin.cnf
