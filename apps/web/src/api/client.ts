@@ -1,4 +1,11 @@
-import type { ApiProblemBody, EvaluationRun, Incident, Overview } from './types'
+import type {
+  ApiProblemBody,
+  EvaluationRun,
+  EvaluationRunList,
+  Incident,
+  Overview,
+  SystemStatus,
+} from './types'
 
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? ''
 
@@ -17,6 +24,8 @@ export function setToken(token: string): void {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  // Authentication and the uniform API error envelope are centralized here so
+  // feature components cannot accidentally bypass either contract.
   const response = await fetch(`${apiBase}${path}`, {
     ...init,
     headers: {
@@ -34,6 +43,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   overview: () => request<Overview>('/api/v1/overview'),
+  systemStatus: () => request<SystemStatus>('/api/v1/system/status'),
   incidents: () => request<{ items: Incident[]; total: number }>('/api/v1/incidents'),
   incident: (id: string) => request<Incident>(`/api/v1/incidents/${id}`),
   diagnose: (id: string) => request<Incident['diagnosis']>(`/api/v1/incidents/${id}/diagnose`, { method: 'POST' }),
@@ -48,6 +58,7 @@ export const api = {
     }),
   approveAction: (actionId: string) =>
     request<{ id: string; status: string }>(`/api/v1/action-requests/${actionId}/approve`, { method: 'POST' }),
+  evaluations: () => request<EvaluationRunList>('/api/v1/evaluations/runs'),
   evaluation: (id: string) => request<EvaluationRun>(`/api/v1/evaluations/runs/${id}`),
 }
 

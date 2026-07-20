@@ -1,8 +1,10 @@
+"""FastAPI entrypoint for authenticated incidents, agents, actions, and runtime status."""
+
 import asyncio
-import json
 import os
 import re
 import uuid
+from collections.abc import Callable
 from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
@@ -14,10 +16,11 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, StreamingResponse
 from kylin_aiops_diagnosis.mindie import MindIEClient
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from .actions import ActionSigner, ApprovalError, create_action_request
 from .queue import RedisStreamActionQueue
+from .status import RuntimeStatusProbe, SystemStatus
 from .store import InMemoryStore
 
 Role = Literal["admin", "operator", "viewer", "agent"]
@@ -75,6 +78,25 @@ class Alert(BaseModel):
     fingerprint: str = Field(min_length=1)
 
 
+class GeneratedEvaluationReport(BaseModel):
+    """Validated subset of the artifact emitted by generate_report.py."""
+
+    trial_count: int = Field(ge=0)
+    metrics: dict[str, float]
+    thresholds: dict[str, float]
+    passed: bool
+    seed: int | None = None
+    code_revision: str | None = None
+    model_sha256: str | None = None
+
+
+def read_evaluation_report(path: Path) -> dict[str, Any]:
+    """Read and validate a report before it can be exposed as measured evidence."""
+
+    report = GeneratedEvaluationReport.model_validate_json(path.read_text(encoding="utf-8"))
+    return report.model_dump(exclude_none=True)
+
+
 class AlertWebhook(BaseModel):
     status: Literal["firing", "resolved"]
     alerts: list[Alert]
@@ -119,7 +141,13 @@ def valid_action_parameters(action_name: str, parameters: dict[str, Any]) -> boo
     return False
 
 
-def create_app(seed_demo: bool = False, mindie_client: Any | None = None) -> FastAPI:
+def create_app(
+    seed_demo: bool = False,
+    mindie_client: Any | None = None,
+    status_get: Callable[..., httpx.Response] | None = None,
+) -> FastAPI:
+    """Create the center API with injectable external probes for deterministic tests."""
+
     app = FastAPI(title="Kylin AIOps API", version="0.1.0")
     redis_url = os.getenv("REDIS_URL")
     queue = RedisStreamActionQueue.from_url(redis_url) if redis_url else None
@@ -136,6 +164,7 @@ def create_app(seed_demo: bool = False, mindie_client: Any | None = None) -> Fas
         if mindie_url
         else None
     )
+    app.state.status_probe = RuntimeStatusProbe.from_environment(status_get or httpx.get)
 
     @app.exception_handler(ApiProblem)
     async def api_problem_handler(request: Request, exc: ApiProblem) -> JSONResponse:
@@ -209,6 +238,19 @@ def create_app(seed_demo: bool = False, mindie_client: Any | None = None) -> Fas
         _: Annotated[User, Depends(require("admin", "operator", "viewer"))],
     ) -> dict[str, Any]:
         return data.overview()
+
+    @app.get(
+        "/api/v1/system/status",
+        response_model=SystemStatus,
+        response_model_exclude_none=True,
+    )
+    def system_status(
+        request: Request,
+        _: Annotated[User, Depends(require("admin", "operator", "viewer"))],
+    ) -> SystemStatus:
+        """Return observed model runtime state for the console status surfaces."""
+
+        return request.app.state.status_probe.snapshot()
 
     @app.get("/api/v1/incidents")
     def incidents(
@@ -329,7 +371,11 @@ def create_app(seed_demo: bool = False, mindie_client: Any | None = None) -> Fas
         data: Annotated[InMemoryStore, Depends(store)],
         _: Annotated[User, Depends(require("admin", "operator", "viewer"))],
     ) -> dict[str, Any]:
-        incident = data.incidents.get(payload.incident_id or "inc-db-pool")
+        incident = (
+            data.incidents.get(payload.incident_id)
+            if payload.incident_id
+            else next(iter(data.incidents.values()), None)
+        )
         if incident is None:
             raise ApiProblem(404, "INCIDENT_NOT_FOUND", "Incident does not exist")
         diagnosis = incident["diagnosis"]
@@ -481,7 +527,15 @@ def create_app(seed_demo: bool = False, mindie_client: Any | None = None) -> Fas
             root = Path(report_root).resolve()
             report_path = (root / run_id / "report.json").resolve()
             if report_path.parent.parent == root and report_path.is_file():
-                report = json.loads(report_path.read_text(encoding="utf-8"))
+                try:
+                    report = read_evaluation_report(report_path)
+                except (OSError, ValidationError) as exc:
+                    raise ApiProblem(
+                        422,
+                        "EVALUATION_REPORT_INVALID",
+                        "Evaluation report is incomplete or invalid",
+                        {"run_id": run_id, "error": type(exc).__name__},
+                    ) from exc
                 report.update(
                     {
                         "id": run_id,
@@ -489,20 +543,56 @@ def create_app(seed_demo: bool = False, mindie_client: Any | None = None) -> Fas
                     }
                 )
                 return report
-        return {
-            "id": run_id,
-            "status": "baseline_only",
-            "trial_count": 0,
-            "thresholds": {
-                "detection_f1": 0.85,
-                "severity_macro_f1": 0.80,
-                "root_cause_top1": 0.80,
-                "root_cause_top3": 0.95,
-                "propagation_edge_f1": 0.80,
-                "remediation_success_rate": 0.80,
-            },
-            "metrics": {},
-        }
+        raise ApiProblem(
+            404,
+            "EVALUATION_RUN_NOT_FOUND",
+            "Evaluation run has no generated report",
+            {"run_id": run_id},
+        )
+
+    @app.get("/api/v1/evaluations/runs")
+    def evaluation_runs(
+        _: Annotated[User, Depends(require("admin", "operator", "viewer"))],
+    ) -> dict[str, Any]:
+        """Discover generated reports; acceptance baselines are not evaluation runs."""
+
+        report_root = os.getenv("EVALUATION_REPORT_DIR")
+        if not report_root:
+            return {"items": [], "total": 0}
+
+        root = Path(report_root).resolve()
+        if not root.is_dir():
+            return {"items": [], "total": 0}
+
+        reports: list[tuple[float, dict[str, Any]]] = []
+        for run_dir in root.iterdir():
+            # Directory names become URL path parameters, so only accept the
+            # same restricted identifier vocabulary as the detail endpoint.
+            if not run_dir.is_dir() or not SAFE_EXPERIMENT_ID.fullmatch(run_dir.name):
+                continue
+            report_path = (run_dir / "report.json").resolve()
+            if report_path.parent != run_dir.resolve() or not report_path.is_file():
+                continue
+            try:
+                report = read_evaluation_report(report_path)
+            except (OSError, ValidationError):
+                # A partial or corrupt generator output must not be presented
+                # to the console as a completed evaluation run.
+                continue
+            report.update(
+                {
+                    "id": run_dir.name,
+                    "status": "passed" if report.get("passed") else "failed",
+                    "generated_at": datetime.fromtimestamp(
+                        report_path.stat().st_mtime,
+                        tz=UTC,
+                    ).isoformat(),
+                }
+            )
+            reports.append((report_path.stat().st_mtime, report))
+
+        items = [report for _, report in sorted(reports, key=lambda item: item[0], reverse=True)]
+        return {"items": items, "total": len(items)}
 
     @app.get("/api/v1/audit-logs")
     def audit_logs(
@@ -514,4 +604,4 @@ def create_app(seed_demo: bool = False, mindie_client: Any | None = None) -> Fas
     return app
 
 
-app = create_app(seed_demo=os.getenv("DEMO_SEED", "true").lower() == "true")
+app = create_app(seed_demo=os.getenv("DEMO_SEED", "false").lower() == "true")

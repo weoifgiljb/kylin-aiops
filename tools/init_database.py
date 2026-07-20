@@ -1,3 +1,5 @@
+"""Initialize the center PostgreSQL schema for offline or manual deployments."""
+
 import argparse
 
 from kylin_aiops_api.database import Base

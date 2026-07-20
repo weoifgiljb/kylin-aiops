@@ -1,3 +1,5 @@
+"""Evidence-weighted anomaly and root-cause scoring for deterministic diagnosis."""
+
 from dataclasses import dataclass
 from datetime import datetime
 

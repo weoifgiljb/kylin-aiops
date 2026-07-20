@@ -1,3 +1,5 @@
+"""OpenAI-compatible explanation client with evidence and action allowlist validation."""
+
 import json
 from typing import Literal
 
@@ -28,6 +30,8 @@ class MindIEOutput(BaseModel):
 def validate_mindie_output(
     output: MindIEOutput, available_evidence_ids: set[str]
 ) -> MindIEOutput:
+    """Reject hallucinated evidence references and non-allowlisted action names."""
+
     unknown = set(output.evidence_refs) - available_evidence_ids
     if unknown:
         raise ValueError(f"MindIE returned unknown Evidence ID: {sorted(unknown)}")
@@ -46,6 +50,8 @@ class MindIEClient:
         self.timeout = timeout
 
     def generate(self, context: dict, available_evidence_ids: set[str]) -> MindIEOutput:
+        """Generate and validate one structured explanation from incident context."""
+
         response = httpx.post(
             f"{self.base_url}/v1/chat/completions",
             json={

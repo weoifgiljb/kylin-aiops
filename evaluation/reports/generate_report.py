@@ -1,3 +1,5 @@
+"""Generate JSON, CSV, and HTML reports from blind trial results."""
+
 import argparse
 import csv
 import hashlib

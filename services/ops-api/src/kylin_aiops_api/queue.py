@@ -1,3 +1,5 @@
+"""Approved-action queue adapters used by the center API and polling agents."""
+
 import json
 from dataclasses import asdict
 from datetime import datetime
@@ -9,6 +11,8 @@ from .actions import ActionEnvelope
 
 
 class ActionQueue(Protocol):
+    """Minimal queue contract shared by memory tests and Redis Streams."""
+
     def enqueue(self, envelope: ActionEnvelope) -> None: ...
     def dequeue(self, node_id: str) -> ActionEnvelope | None: ...
 
@@ -28,6 +32,8 @@ def _deserialize(payload: str) -> ActionEnvelope:
 
 
 class InMemoryActionQueue:
+    """Deterministic queue used by local development and unit tests."""
+
     def __init__(self) -> None:
         self.items: list[ActionEnvelope] = []
 
@@ -42,6 +48,8 @@ class InMemoryActionQueue:
 
 
 class RedisStreamActionQueue:
+    """Redis Streams adapter that removes an action when its target agent consumes it."""
+
     stream = "kylin-aiops:approved-actions"
 
     def __init__(self, redis: Redis) -> None:

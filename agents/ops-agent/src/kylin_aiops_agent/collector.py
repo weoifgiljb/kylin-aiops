@@ -1,3 +1,5 @@
+"""Host metric collection abstraction and psutil implementation."""
+
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Protocol
@@ -45,6 +47,8 @@ class MetricBatch:
 
 
 class SystemCollector:
+    """Collect one normalized metrics batch without retaining host state."""
+
     def __init__(self, node_id: str, provider: MetricsProvider | None = None) -> None:
         if not node_id.strip():
             raise ValueError("node_id is required")
@@ -52,6 +56,8 @@ class SystemCollector:
         self.provider = provider or PsutilProvider()
 
     def collect(self) -> MetricBatch:
+        """Read the current CPU, memory, disk, load, process, and connection metrics."""
+
         load_1m, load_5m, load_15m = self.provider.load_average()
         return MetricBatch(
             node_id=self.node_id,

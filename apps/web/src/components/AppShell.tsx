@@ -5,9 +5,12 @@ import {
   MessageOutlined,
   SettingOutlined,
 } from '@ant-design/icons'
+import { useQuery } from '@tanstack/react-query'
 import { Layout, Menu, Typography } from 'antd'
 import type { ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
+
+import { api } from '../api/client'
 
 const { Header, Sider, Content } = Layout
 
@@ -21,6 +24,17 @@ const menuItems = [
 
 export function AppShell({ children }: { children: ReactNode }) {
   const location = useLocation()
+  const statusQuery = useQuery({
+    queryKey: ['system-status'],
+    queryFn: api.systemStatus,
+    refetchInterval: 15_000,
+  })
+  const diagnosisState = statusQuery.data?.components.deterministic_diagnosis.status
+  const diagnosisLabel = statusQuery.isError
+    ? '状态接口不可达'
+    : diagnosisState === 'available'
+      ? '规则诊断可用'
+      : '状态检查中'
   return (
     <Layout className="app-layout">
       <Sider width={216} className="app-sidebar" breakpoint="lg" collapsedWidth={72}>
@@ -30,7 +44,10 @@ export function AppShell({ children }: { children: ReactNode }) {
       <Layout>
         <Header className="app-header">
           <Typography.Title level={3}>银河麒麟智能运维</Typography.Title>
-          <div className="operator"><span className="health-dot" />确定性诊断在线</div>
+          <div className="operator">
+            <span className="health-dot" data-status={statusQuery.isError ? 'unreachable' : diagnosisState ?? 'checking'} />
+            {diagnosisLabel}
+          </div>
         </Header>
         <Content className="app-content">{children}</Content>
       </Layout>

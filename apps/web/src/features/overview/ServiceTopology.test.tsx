@@ -22,3 +22,23 @@ test('renders the fixed three-node lab dependency chain', () => {
   expect(screen.getByText('Java 服务')).toBeInTheDocument()
   expect(screen.getByText('MySQL')).toBeInTheDocument()
 })
+
+test('renders live metrics reported by an enrolled agent', () => {
+  render(
+    <ServiceTopology
+      nodes={[
+        {
+          id: 'local-dev-01',
+          hostname: 'developer-pc',
+          status: 'online',
+          last_seen_at: '2026-07-19T16:40:00Z',
+          metrics: { cpu_percent: 12.5, memory_percent: 34.5 },
+        },
+      ]}
+      topology={[]}
+    />,
+  )
+
+  expect(screen.getByText('local-dev-01')).toBeInTheDocument()
+  expect(screen.getByText('CPU 12.5% · 内存 34.5%')).toBeInTheDocument()
+})

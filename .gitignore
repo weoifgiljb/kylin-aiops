@@ -16,4 +16,5 @@ coverage/
 evaluation/reports/*.json
 evaluation/reports/*.csv
 !evaluation/reports/example-trials.json
+evaluation/reports/generated/
 infra/offline/bundle/

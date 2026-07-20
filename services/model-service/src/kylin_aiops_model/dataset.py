@@ -1,3 +1,5 @@
+"""Experiment-grouped dataset splitting that prevents adjacent-window leakage."""
+
 from dataclasses import dataclass
 from random import Random
 

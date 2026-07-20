@@ -1,3 +1,5 @@
+"""Development state store with optional SQL persistence for the MVP control plane."""
+
 from __future__ import annotations
 
 import uuid
@@ -184,11 +186,33 @@ class InMemoryStore:
         }
 
     def overview(self) -> dict[str, Any]:
-        cutoff = datetime.now(UTC) - timedelta(seconds=30)
+        """Build a current overview from enrolled nodes, telemetry, incidents, and actions."""
+
+        now = datetime.now(UTC)
+        cutoff = now - timedelta(seconds=30)
         for node in self.nodes.values():
             last_seen = node.get("last_seen_at")
             if last_seen and datetime.fromisoformat(last_seen) < cutoff:
                 node["status"] = "offline"
+        nodes = []
+        for node in self.nodes.values():
+            item = dict(node)
+            telemetry = self.telemetry.get(node["id"])
+            if telemetry:
+                item["metrics"] = dict(telemetry["metrics"])
+            nodes.append(item)
+        # Only emit topology edges whose endpoint services were actually discovered;
+        # an empty live environment must never recreate the three-node demo chain.
+        service_nodes = {
+            str(node.get("service", "")).lower(): node["id"]
+            for node in self.nodes.values()
+            if node.get("service")
+        }
+        topology = [
+            {"source": service_nodes[source], "target": service_nodes[target], "confidence": 1.0}
+            for source, target in (("nginx", "java"), ("java", "mysql"))
+            if source in service_nodes and target in service_nodes
+        ]
         return {
             "online_nodes": sum(node["status"] == "online" for node in self.nodes.values()),
             "total_nodes": len(self.nodes),
@@ -196,18 +220,20 @@ class InMemoryStore:
                 incident["status"] in {"open", "diagnosing"}
                 for incident in self.incidents.values()
             ),
-            "today_alerts": 6 if self.incidents else 0,
+            "today_alerts": sum(
+                datetime.fromisoformat(incident["started_at"]).date() == now.date()
+                for incident in self.incidents.values()
+            ),
             "pending_actions": sum(
                 action.status.value == "pending" for action in self.actions.values()
             ),
-            "nodes": list(self.nodes.values()),
-            "topology": [
-                {"source": "web-01", "target": "app-01", "confidence": 1.0},
-                {"source": "app-01", "target": "db-01", "confidence": 1.0},
-            ],
+            "nodes": nodes,
+            "topology": topology,
         }
 
     def persist_all(self) -> None:
+        """Persist the current MVP state when a database URL was configured."""
+
         if not self.engine:
             return
         with Session(self.engine) as session:
@@ -324,6 +350,8 @@ class InMemoryStore:
         target: str,
         details: dict[str, Any] | None = None,
     ) -> None:
+        """Append an immutable-in-practice audit event for a security-sensitive operation."""
+
         self.audit_logs.append(
             {
                 "id": str(uuid.uuid4()),

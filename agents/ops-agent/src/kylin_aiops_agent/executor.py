@@ -1,3 +1,5 @@
+"""Agent-side mapping from signed allowlisted actions to fixed argv commands."""
+
 import re
 import subprocess
 from dataclasses import dataclass, field
@@ -7,7 +9,7 @@ from kylin_aiops_api.actions import ActionEnvelope, ExecutionGuard
 
 
 class UnsafeAction(ValueError):
-    pass
+    """Raised when an action name, target, or parameter leaves the allowlist."""
 
 
 SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
@@ -16,6 +18,8 @@ SAFE_INTERFACE = re.compile(r"^(eth|ens|enp)[A-Za-z0-9_.-]{1,31}$")
 
 @dataclass(frozen=True)
 class PreparedCommand:
+    """Fixed argv plus optional precheck and health check; shell execution is forbidden."""
+
     argv: list[str]
     precheck_argv: list[str] | None = None
     healthcheck_argv: list[str] | None = None
@@ -31,11 +35,15 @@ class ExecutionResult:
 
 
 class AllowlistedExecutor:
+    """Verify action envelopes and execute only exact, audited command templates."""
+
     def __init__(self, node_id: str, guard: ExecutionGuard) -> None:
         self.node_id = node_id
         self.guard = guard
 
     def prepare(self, envelope: ActionEnvelope, now: datetime) -> PreparedCommand:
+        """Validate the envelope and convert it to a fixed command without executing it."""
+
         self.guard.verify(envelope, node_id=self.node_id, now=now)
         params = envelope.parameters
         action = envelope.action_name
@@ -97,6 +105,8 @@ class AllowlistedExecutor:
         raise UnsafeAction(f"Action {action!r} is not allowlisted")
 
     def execute(self, envelope: ActionEnvelope, now: datetime) -> ExecutionResult:
+        """Run precheck, command, and health check before recording replay protection."""
+
         command = self.prepare(envelope, now)
         if command.precheck_argv:
             precheck = subprocess.run(
@@ -109,6 +119,8 @@ class AllowlistedExecutor:
                     stderr=precheck.stderr,
                     health_check="failed",
                 )
+        # argv lists and shell=False are security invariants: approved parameters
+        # must never be reinterpreted by a command shell.
         result = subprocess.run(
             command.argv, shell=False, check=False, capture_output=True, text=True, timeout=30
         )

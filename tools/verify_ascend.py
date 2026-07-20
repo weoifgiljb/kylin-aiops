@@ -1,3 +1,5 @@
+"""Collect auditable evidence that MindSpore is using the requested Ascend device."""
+
 import json
 import subprocess
 

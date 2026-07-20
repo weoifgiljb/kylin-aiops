@@ -1,3 +1,5 @@
+"""Export the FastAPI OpenAPI document used as the frontend contract source."""
+
 import json
 from pathlib import Path
 

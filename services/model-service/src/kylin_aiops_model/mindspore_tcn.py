@@ -1,3 +1,5 @@
+"""MindSpore temporal classifier construction and Ascend checkpoint inference."""
+
 from pathlib import Path
 
 from .app import CLASSES, FEATURE_NAMES, PredictionResponse

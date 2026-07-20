@@ -1,3 +1,5 @@
+"""Long-running agent loop for telemetry upload and approved-action polling."""
+
 import logging
 import time
 from datetime import UTC, datetime
@@ -14,6 +16,8 @@ LOGGER = logging.getLogger("kylin-aiops-agent")
 
 
 def build_http_client(settings: AgentSettings) -> httpx.Client:
+    """Create the outbound-only mTLS client from agent configuration."""
+
     cert: str | tuple[str, str] | None = None
     if settings.cert_file and settings.key_file:
         cert = (str(settings.cert_file), str(settings.key_file))
@@ -22,6 +26,8 @@ def build_http_client(settings: AgentSettings) -> httpx.Client:
 
 
 def run() -> None:
+    """Collect telemetry and execute at most allowlisted, signed commands forever."""
+
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     settings = AgentSettings()
     collector = SystemCollector(settings.node_id)

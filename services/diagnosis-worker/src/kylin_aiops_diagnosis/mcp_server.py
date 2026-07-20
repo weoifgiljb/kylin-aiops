@@ -1,3 +1,5 @@
+"""Read-only evidence tools plus the approval-gated action execution MCP tool."""
+
 from pathlib import Path
 from typing import Any
 

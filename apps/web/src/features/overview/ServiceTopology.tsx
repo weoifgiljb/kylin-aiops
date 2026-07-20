@@ -18,10 +18,10 @@ interface Props {
 }
 
 export function ServiceTopology({ nodes, topology, rootNode }: Props) {
-  const flowNodes: Node[] = nodes.map((node) => ({
+  const flowNodes: Node[] = nodes.map((node, index) => ({
     id: node.id,
-    position: positions[node.id] ?? { x: 0, y: 0 },
-    data: { label: <div className="topology-node"><strong>{labels[node.service ?? ''] ?? node.service}</strong><small>{node.hostname}</small><span>{node.status === 'online' ? '在线' : '离线'}</span></div> },
+    position: positions[node.id] ?? { x: 30 + (index % 3) * 270, y: 90 + Math.floor(index / 3) * 150 },
+    data: { label: <div className="topology-node"><strong>{labels[node.service ?? ''] ?? node.service ?? node.id}</strong><small>{node.hostname}</small>{node.metrics && <small>{`CPU ${node.metrics.cpu_percent?.toFixed(1) ?? '-'}% · 内存 ${node.metrics.memory_percent?.toFixed(1) ?? '-'}%`}</small>}<span>{node.status === 'online' ? '在线' : '离线'}</span></div> },
     className: node.id === rootNode ? 'flow-node flow-node-root' : 'flow-node',
   }))
   const flowEdges: Edge[] = topology.map((edge, index) => ({

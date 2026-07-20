@@ -1,3 +1,5 @@
+"""Environment and certificate settings for the node agent."""
+
 from pathlib import Path
 
 from pydantic import Field
@@ -5,6 +7,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class AgentSettings(BaseSettings):
+    """Validated settings loaded from KYLIN_AIOPS_* variables or agent.env."""
+
     model_config = SettingsConfigDict(
         env_prefix="KYLIN_AIOPS_",
         env_file="/etc/kylin-aiops/agent.env",

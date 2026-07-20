@@ -1,3 +1,5 @@
+"""Quantitative acceptance metric calculation for blind fault-injection trials."""
+
 from dataclasses import dataclass
 
 

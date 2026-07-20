@@ -1,3 +1,5 @@
+"""Typed HTTP client for the outbound agent protocol."""
+
 from dataclasses import asdict
 from datetime import datetime
 
@@ -9,6 +11,8 @@ from .executor import ExecutionResult
 
 
 class AgentApiClient:
+    """Send telemetry, poll signed actions, and return execution results."""
+
     def __init__(self, http: httpx.Client, token: str, node_id: str) -> None:
         self.http = http
         self.node_id = node_id

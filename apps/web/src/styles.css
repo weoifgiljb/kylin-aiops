@@ -9,6 +9,9 @@ body { margin: 0; min-width: 320px; min-height: 100vh; }
 .app-header h3 { margin: 0; color: #102a43; }
 .operator { color: #486581; font-size: 13px; }
 .health-dot { display: inline-block; width: 8px; height: 8px; background: #16a34a; border-radius: 50%; margin-right: 8px; }
+.health-dot[data-status="checking"] { background: #94a3b8; }
+.health-dot[data-status="degraded"], .health-dot[data-status="unconfigured"] { background: #d97706; }
+.health-dot[data-status="unreachable"] { background: #dc2626; }
 .app-content { padding: 20px; background: #f4f7fb; min-width: 0; }
 .dashboard-grid { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 18px; align-items: start; }
 .summary-row .ant-card { border-color: #d9e2ec; box-shadow: 0 2px 8px rgb(16 42 67 / 4%); }

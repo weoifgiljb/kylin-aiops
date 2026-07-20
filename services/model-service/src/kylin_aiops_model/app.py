@@ -1,3 +1,5 @@
+"""Model inference API with an explicit deterministic fallback backend."""
+
 from typing import Literal
 
 from fastapi import FastAPI
@@ -49,6 +51,8 @@ class PredictionResponse(BaseModel):
 
 
 class DeterministicFallback:
+    """Threshold-based seven-class predictor used when no checkpoint is loaded."""
+
     def predict(self, window: list[list[float]]) -> PredictionResponse:
         latest = dict(zip(FEATURE_NAMES, window[-1], strict=True))
         predicted = "normal"
@@ -74,6 +78,8 @@ class DeterministicFallback:
 
 
 def create_app(predictor=None) -> FastAPI:
+    """Create the inference service around an injected or fallback predictor."""
+
     app = FastAPI(title="Kylin AIOps Model Service", version="0.1.0")
     app.state.predictor = predictor or DeterministicFallback()
 

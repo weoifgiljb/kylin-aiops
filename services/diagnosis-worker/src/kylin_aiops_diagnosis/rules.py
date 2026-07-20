@@ -1,3 +1,5 @@
+"""Safety-first deterministic rules that can override probabilistic model output."""
+
 from dataclasses import dataclass
 
 

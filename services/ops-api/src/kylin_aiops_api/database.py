@@ -1,3 +1,5 @@
+"""SQLAlchemy persistence schema for assets, incidents, evidence, actions, and evaluations."""
+
 from datetime import datetime
 from typing import Any
 

@@ -70,7 +70,14 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       ACTION_SIGNING_SECRET: ${ACTION_SIGNING_SECRET:?set ACTION_SIGNING_SECRET}
+      MODEL_SERVICE_URL: http://model-service:8001
+      MINDIE_BASE_URL: ${MINDIE_BASE_URL:-}
+      MINDIE_MODEL: ${MINDIE_MODEL:-kylin-ops-llm}
+      MINDIE_PROVIDER: ${MINDIE_PROVIDER:-MindIE}
+      EVALUATION_REPORT_DIR: /app/evaluation/reports/generated
       DEMO_SEED: "false"
+    volumes:
+      - ../../evaluation/reports/generated:/app/evaluation/reports/generated:ro
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}

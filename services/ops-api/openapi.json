@@ -75,6 +75,53 @@
         }
       }
     },
+    "/api/v1/system/status": {
+      "get": {
+        "summary": "System Status",
+        "description": "Return observed model runtime state for the console status surfaces.",
+        "operationId": "system_status_api_v1_system_status_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemStatus"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/incidents": {
       "get": {
         "summary": "Incidents",
@@ -844,6 +891,55 @@
         }
       }
     },
+    "/api/v1/evaluations/runs": {
+      "get": {
+        "summary": "Evaluation Runs",
+        "description": "Discover generated reports; acceptance baselines are not evaluation runs.",
+        "operationId": "evaluation_runs_api_v1_evaluations_runs_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Evaluation Runs Api V1 Evaluations Runs Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/audit-logs": {
       "get": {
         "summary": "Audit Logs",
@@ -1045,6 +1141,53 @@
         ],
         "title": "ChatMessage"
       },
+      "ComponentStatus": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "available",
+              "degraded",
+              "unconfigured",
+              "unreachable"
+            ],
+            "title": "Status"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          },
+          "backend": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Backend"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "detail"
+        ],
+        "title": "ComponentStatus",
+        "description": "Observed state of one runtime dependency."
+      },
       "Enrollment": {
         "properties": {
           "node_id": {
@@ -1085,6 +1228,29 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "SystemStatus": {
+        "properties": {
+          "checked_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Checked At"
+          },
+          "components": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ComponentStatus"
+            },
+            "type": "object",
+            "title": "Components"
+          }
+        },
+        "type": "object",
+        "required": [
+          "checked_at",
+          "components"
+        ],
+        "title": "SystemStatus",
+        "description": "Status snapshot returned to authenticated console users."
       },
       "TelemetryBatch": {
         "properties": {
