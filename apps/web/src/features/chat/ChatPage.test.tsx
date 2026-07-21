@@ -8,7 +8,7 @@ import ChatPage from './ChatPage'
 
 vi.mock('../../api/client', () => ({
   api: {
-    chat: vi.fn().mockResolvedValue({ answer: 'live answer', evidence_refs: [] }),
+    chat: vi.fn().mockResolvedValue({ answer: 'live answer', source: 'generative_ai', evidence_refs: [] }),
   },
 }))
 
@@ -21,4 +21,5 @@ test('sends the currently selected live incident instead of a demo incident', as
   fireEvent.click(screen.getByRole('button', { name: /发\s*送/ }))
 
   await waitFor(() => expect(api.chat).toHaveBeenCalledWith('default', '发生了什么？', 'inc-live-alert'))
+  expect(await screen.findByText('生成式模型')).toBeInTheDocument()
 })

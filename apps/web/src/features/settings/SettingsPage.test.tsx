@@ -22,11 +22,15 @@ vi.mock('../../api/client', () => ({
       },
     }),
   },
-  getToken: () => 'dev-operator-token',
-  setToken: vi.fn(),
 }))
 
-test('renders model status returned by the center API', async () => {
+vi.mock('../auth/auth-state', () => ({
+  useAuth: () => ({
+    user: { id: 'user-1', username: 'operator', display_name: '值班员', role: 'operator' },
+  }),
+}))
+
+test('展示中心 API 返回的模型状态', async () => {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(<QueryClientProvider client={queryClient}><SettingsPage /></QueryClientProvider>)
 
@@ -35,4 +39,15 @@ test('renders model status returned by the center API', async () => {
   expect(await screen.findByText('Ollama / llama3.1:latest')).toBeInTheDocument()
   expect(screen.getByText('DeterministicFallback')).toBeInTheDocument()
   expect(api.systemStatus).toHaveBeenCalledOnce()
+})
+
+test('不再允许前端切换固定开发令牌', () => {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  render(<QueryClientProvider client={queryClient}><SettingsPage /></QueryClientProvider>)
+
+  fireEvent.click(screen.getByText('账号与会话'))
+
+  expect(screen.getByText('值班员')).toBeInTheDocument()
+  expect(screen.getByText(/access token 仅保存在当前页面内存中/)).toBeInTheDocument()
+  expect(screen.queryByText('dev-admin-token')).not.toBeInTheDocument()
 })

@@ -18,26 +18,36 @@ vi.mock('../api/client', () => ({
   },
 }))
 
-test('shows the five approved product areas', () => {
+const admin = { id: 'admin-1', username: 'admin', display_name: '系统管理员', role: 'admin' as const }
+const viewer = { id: 'viewer-1', username: 'viewer', display_name: '访客', role: 'viewer' as const }
+
+function renderShell(user: typeof admin | typeof viewer) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  render(
+  return render(
     <QueryClientProvider client={queryClient}><MemoryRouter>
-      <AppShell><div>content</div></AppShell>
+      <AppShell user={user} onLogout={() => undefined}><div>content</div></AppShell>
     </MemoryRouter></QueryClientProvider>,
   )
+}
 
-  for (const label of ['态势总览', '事件中心', '智能问答', '评测报告', '系统设置']) {
+test('shows product and admin areas for an administrator', () => {
+  renderShell(admin)
+
+  for (const label of ['态势总览', '事件中心', '智能问答', '评测报告', '系统设置', '资源管理', '用户管理', '审计日志']) {
     expect(screen.getByText(label)).toBeInTheDocument()
   }
 })
 
+test('hides administrator menus from a viewer', () => {
+  renderShell(viewer)
+
+  expect(screen.queryByText('资源管理')).not.toBeInTheDocument()
+  expect(screen.queryByText('用户管理')).not.toBeInTheDocument()
+  expect(screen.queryByText('审计日志')).not.toBeInTheDocument()
+})
+
 test('shows the deterministic diagnosis status returned by the API', async () => {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  render(
-    <QueryClientProvider client={queryClient}><MemoryRouter>
-      <AppShell><div>content</div></AppShell>
-    </MemoryRouter></QueryClientProvider>,
-  )
+  renderShell(admin)
 
   expect(await screen.findByText('规则诊断可用')).toBeInTheDocument()
 })

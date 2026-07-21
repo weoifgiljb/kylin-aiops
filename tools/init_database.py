@@ -1,17 +1,21 @@
-"""Initialize the center PostgreSQL schema for offline or manual deployments."""
+"""通过 Alembic 把中心 PostgreSQL Schema 升级到当前版本。"""
 
 import argparse
+import os
 
-from kylin_aiops_api.database import Base
-from sqlalchemy import create_engine
+from alembic import command
+from alembic.config import Config
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--database-url", required=True)
+    parser.add_argument("--database-url", default=os.getenv("DATABASE_URL"))
     args = parser.parse_args()
-    engine = create_engine(args.database_url)
-    Base.metadata.create_all(engine)
+    if not args.database_url:
+        raise SystemExit("请设置 DATABASE_URL 或传入 --database-url")
+    config = Config("alembic.ini")
+    config.set_main_option("sqlalchemy.url", args.database_url)
+    command.upgrade(config, "head")
 
 
 if __name__ == "__main__":

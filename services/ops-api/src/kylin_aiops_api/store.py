@@ -15,7 +15,6 @@ from .database import (
     ActionExecutionRow,
     ActionRequestRow,
     AuditLogRow,
-    Base,
     DiagnosisRow,
     EvidenceRow,
     IncidentRow,
@@ -45,7 +44,6 @@ class InMemoryStore:
         self.audit_logs: list[dict[str, Any]] = []
         self.engine = create_engine(database_url) if database_url else None
         if self.engine:
-            Base.metadata.create_all(self.engine)
             self._load_database()
         if seed_demo and not self.nodes:
             self._seed_demo()
@@ -54,8 +52,7 @@ class InMemoryStore:
         assert self.engine is not None
         with Session(self.engine) as session:
             services = {
-                item.node_id: item.service_type
-                for item in session.scalars(select(ServiceRow))
+                item.node_id: item.service_type for item in session.scalars(select(ServiceRow))
             }
             for row in session.scalars(select(NodeRow)):
                 self.nodes[row.id] = {
@@ -201,8 +198,7 @@ class InMemoryStore:
             if telemetry:
                 item["metrics"] = dict(telemetry["metrics"])
             nodes.append(item)
-        # Only emit topology edges whose endpoint services were actually discovered;
-        # an empty live environment must never recreate the three-node demo chain.
+        # 只输出两端服务都已真实发现的拓扑边，空环境不能重新生成三节点演示链。
         service_nodes = {
             str(node.get("service", "")).lower(): node["id"]
             for node in self.nodes.values()
@@ -217,8 +213,7 @@ class InMemoryStore:
             "online_nodes": sum(node["status"] == "online" for node in self.nodes.values()),
             "total_nodes": len(self.nodes),
             "active_incidents": sum(
-                incident["status"] in {"open", "diagnosing"}
-                for incident in self.incidents.values()
+                incident["status"] in {"open", "diagnosing"} for incident in self.incidents.values()
             ),
             "today_alerts": sum(
                 datetime.fromisoformat(incident["started_at"]).date() == now.date()

@@ -8,8 +8,8 @@ export function IncidentInspector({ incident, onApprove }: { incident: Incident;
     <aside className="incident-inspector" aria-label="事件详情">
       <div className="inspector-title"><div><span>事件详情</span><h2>{incident.title}</h2></div><Tag color="red">{incident.severity}</Tag></div>
       <Divider />
-      <section><Typography.Text type="secondary">根因结论</Typography.Text><h3>{incident.diagnosis.root_cause}</h3><p>{incident.diagnosis.summary}</p></section>
-      <section><Typography.Text type="secondary">传播路径</Typography.Text><p className="path-text">{incident.diagnosis.propagation_path.join(' → ')}</p></section>
+      <section><Typography.Text type="secondary">根因结论</Typography.Text><h3>{incident.diagnosis.root_cause || '等待诊断'}</h3><p>{incident.diagnosis.summary}</p></section>
+      <section><Typography.Text type="secondary">传播路径</Typography.Text><p className="path-text">{incident.diagnosis.propagation_path.join(' → ') || '暂无传播路径'}</p></section>
       <section><Typography.Text type="secondary">关键证据</Typography.Text>
         <div className="evidence-list">{incident.diagnosis.evidence_refs.map((id) => {
           const evidence = evidenceById.get(id)
@@ -17,7 +17,7 @@ export function IncidentInspector({ incident, onApprove }: { incident: Incident;
         })}</div>
       </section>
       <section><Typography.Text type="secondary">修复建议</Typography.Text><ol>{incident.diagnosis.recommended_steps.map((step) => <li key={step}>{step}</li>)}</ol></section>
-      <div className="inspector-actions"><Button type="primary" size="large" onClick={onApprove}>审批并执行</Button><Button size="large">仅保存方案</Button></div>
+      <div className="inspector-actions"><Button type="primary" size="large" disabled={!incident.diagnosis.action_candidates.length} onClick={onApprove}>审批并执行</Button><Button size="large">仅保存方案</Button></div>
     </aside>
   )
 }

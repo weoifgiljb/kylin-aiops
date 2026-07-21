@@ -1,8 +1,9 @@
-"""FastAPI entrypoint for authenticated incidents, agents, actions, and runtime status."""
+"""提供事件、Agent、受控动作、运行状态和管理能力的 FastAPI 入口。"""
 
 import asyncio
 import os
 import re
+import secrets
 import uuid
 from collections.abc import Callable
 from dataclasses import asdict
@@ -11,32 +12,23 @@ from pathlib import Path
 from typing import Annotated, Any, Literal
 
 import httpx
-from fastapi import Depends, FastAPI, Header, Query, Request, Response
+from fastapi import Depends, FastAPI, Query, Request, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.security import OAuth2PasswordBearer
 from kylin_aiops_diagnosis.mindie import MindIEClient
 from pydantic import BaseModel, Field, ValidationError
+from redis import Redis
+from sqlalchemy.orm.exc import StaleDataError
 
 from .actions import ActionSigner, ApprovalError, create_action_request
+from .auth import ApiProblem, AuthManager, Role
+from .auth import AuthUser as User
+from .management import register_management_routes
 from .queue import RedisStreamActionQueue
 from .status import RuntimeStatusProbe, SystemStatus
 from .store import InMemoryStore
-
-Role = Literal["admin", "operator", "viewer", "agent"]
-
-
-class User(BaseModel):
-    id: str
-    role: Role
-
-
-class ApiProblem(Exception):
-    def __init__(self, status: int, code: str, message: str, details: Any = None) -> None:
-        self.status = status
-        self.code = code
-        self.message = message
-        self.details = details if details is not None else {}
 
 
 class ActionPreview(BaseModel):
@@ -79,7 +71,7 @@ class Alert(BaseModel):
 
 
 class GeneratedEvaluationReport(BaseModel):
-    """Validated subset of the artifact emitted by generate_report.py."""
+    """约束 generate_report.py 产物中可以作为实测证据公开的字段。"""
 
     trial_count: int = Field(ge=0)
     metrics: dict[str, float]
@@ -91,7 +83,7 @@ class GeneratedEvaluationReport(BaseModel):
 
 
 def read_evaluation_report(path: Path) -> dict[str, Any]:
-    """Read and validate a report before it can be exposed as measured evidence."""
+    """读取并校验评测报告，防止把不完整文件作为实测证据公开。"""
 
     report = GeneratedEvaluationReport.model_validate_json(path.read_text(encoding="utf-8"))
     return report.model_dump(exclude_none=True)
@@ -131,9 +123,10 @@ def valid_action_parameters(action_name: str, parameters: dict[str, Any]) -> boo
     if action_name == "stop_fault_stressor":
         return set(parameters) == {"experiment_id"}
     if action_name == "remove_fault_file":
-        return set(parameters) == {"experiment_id", "filename"} and parameters.get(
-            "filename"
-        ) == "disk-fill.bin"
+        return (
+            set(parameters) == {"experiment_id", "filename"}
+            and parameters.get("filename") == "disk-fill.bin"
+        )
     if action_name == "clear_fault_netem":
         return set(parameters) == {"experiment_id", "interface"} and bool(
             SAFE_INTERFACE.fullmatch(str(parameters.get("interface", "")))
@@ -141,28 +134,84 @@ def valid_action_parameters(action_name: str, parameters: dict[str, Any]) -> boo
     return False
 
 
+def _validate_school_test_config(
+    database_url: str | None,
+    redis_url: str | None,
+    jwt_secret: str,
+    action_secret: str,
+    agent_bootstrap_token: str | None,
+    cookie_secure: bool,
+) -> None:
+    """校内多人模式必须具备共享存储和强秘密，避免误用单机降级配置。"""
+
+    if os.getenv("APP_ENV") != "school_test":
+        return
+    required = {
+        "DATABASE_URL": database_url,
+        "REDIS_URL": redis_url,
+        "JWT_SECRET": jwt_secret if len(jwt_secret.encode("utf-8")) >= 32 else None,
+        "ACTION_SIGNING_SECRET": (
+            action_secret if len(action_secret.encode("utf-8")) >= 32 else None
+        ),
+        "AGENT_BOOTSTRAP_TOKEN": (
+            agent_bootstrap_token
+            if agent_bootstrap_token and len(agent_bootstrap_token.encode("utf-8")) >= 32
+            else None
+        ),
+    }
+    missing = [name for name, value in required.items() if not value]
+    if missing:
+        raise ValueError(f"校内测试模式缺少必要配置或强秘密：{', '.join(missing)}")
+    if not cookie_secure:
+        raise ValueError("校内测试模式必须启用 COOKIE_SECURE")
+
+
 def create_app(
     seed_demo: bool = False,
     mindie_client: Any | None = None,
     status_get: Callable[..., httpx.Response] | None = None,
+    database_url: str | None = None,
+    jwt_secret: str | None = None,
+    secure_cookies: bool | None = None,
 ) -> FastAPI:
-    """Create the center API with injectable external probes for deterministic tests."""
+    """创建中心 API，并允许测试注入数据库、密钥和外部状态探针。"""
 
-    app = FastAPI(title="Kylin AIOps API", version="0.1.0")
+    app = FastAPI(title="Kylin AIOps API", version="0.2.0")
     redis_url = os.getenv("REDIS_URL")
+    configured_database_url = database_url or os.getenv("DATABASE_URL")
+    configured_secret = jwt_secret or os.getenv("JWT_SECRET", "")
+    signing_secret = os.getenv("ACTION_SIGNING_SECRET", "development-action-signing-secret")
+    cookie_secure = (
+        secure_cookies
+        if secure_cookies is not None
+        else os.getenv("COOKIE_SECURE", "true").lower() == "true"
+    )
+    _validate_school_test_config(
+        configured_database_url,
+        redis_url,
+        configured_secret,
+        signing_secret,
+        os.getenv("AGENT_BOOTSTRAP_TOKEN"),
+        cookie_secure,
+    )
     queue = RedisStreamActionQueue.from_url(redis_url) if redis_url else None
     app.state.store = InMemoryStore(
         seed_demo=seed_demo,
         action_queue=queue,
-        database_url=os.getenv("DATABASE_URL"),
+        database_url=configured_database_url,
     )
-    signing_secret = os.getenv("ACTION_SIGNING_SECRET", "development-action-signing-secret")
+    app.state.auth_manager = None
+    if configured_database_url:
+        redis_client = Redis.from_url(redis_url, decode_responses=True) if redis_url else None
+        app.state.auth_manager = AuthManager(
+            configured_database_url,
+            configured_secret,
+            redis_client=redis_client,
+        )
     app.state.signer = ActionSigner(signing_secret.encode())
     mindie_url = os.getenv("MINDIE_BASE_URL")
     app.state.mindie_client = mindie_client or (
-        MindIEClient(mindie_url, os.getenv("MINDIE_MODEL", "kylin-ops-llm"))
-        if mindie_url
-        else None
+        MindIEClient(mindie_url, os.getenv("MINDIE_MODEL", "kylin-ops-llm")) if mindie_url else None
     )
     app.state.status_probe = RuntimeStatusProbe.from_environment(status_get or httpx.get)
 
@@ -176,6 +225,19 @@ def create_app(
                 "message": exc.message,
                 "request_id": request_id,
                 "details": exc.details,
+            },
+        )
+
+    @app.exception_handler(StaleDataError)
+    async def stale_data_handler(request: Request, _: StaleDataError) -> JSONResponse:
+        request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+        return JSONResponse(
+            status_code=409,
+            content={
+                "code": "VERSION_CONFLICT",
+                "message": "数据已被其他用户更新，请刷新后重试",
+                "request_id": request_id,
+                "details": {},
             },
         )
 
@@ -194,25 +256,38 @@ def create_app(
             },
         )
 
+    oauth2_scheme = OAuth2PasswordBearer(
+        tokenUrl="/api/v1/auth/token",
+        scheme_name="HumanOAuth2",
+        auto_error=False,
+    )
+
     def current_user(
         request: Request,
-        authorization: Annotated[str | None, Header()] = None,
+        token: Annotated[str | None, Depends(oauth2_scheme)] = None,
     ) -> User:
-        if not authorization or not authorization.startswith("Bearer "):
+        if not token:
             raise ApiProblem(401, "AUTH_REQUIRED", "Bearer token is required")
-        token = authorization.removeprefix("Bearer ")
+        enrolled_node = next(
+            (
+                node_id
+                for node_id, enrollment_token in request.app.state.store.agent_tokens.items()
+                if enrollment_token == token
+            ),
+            None,
+        )
+        if enrolled_node:
+            return User(id=f"agent:{enrolled_node}", role="agent")
+        bootstrap_token = os.getenv("AGENT_BOOTSTRAP_TOKEN")
+        if bootstrap_token and secrets.compare_digest(token, bootstrap_token):
+            return User(id="agent:bootstrap", role="agent")
+        manager: AuthManager | None = request.app.state.auth_manager
+        if manager is not None:
+            agent = manager.current_agent(token)
+            if agent is not None:
+                return agent
+            return manager.current_user(token)
         user = TOKENS.get(token)
-        if user is None:
-            enrolled_node = next(
-                (
-                    node_id
-                    for node_id, enrollment_token in request.app.state.store.agent_tokens.items()
-                    if enrollment_token == token
-                ),
-                None,
-            )
-            if enrolled_node:
-                user = User(id=f"agent:{enrolled_node}", role="agent")
         if user is None:
             raise ApiProblem(401, "INVALID_TOKEN", "Bearer token is invalid")
         return user
@@ -227,6 +302,14 @@ def create_app(
 
     def store(request: Request) -> InMemoryStore:
         return request.app.state.store
+
+    if app.state.auth_manager is not None:
+        register_management_routes(
+            app,
+            app.state.auth_manager,
+            current_user,
+            secure_cookies=cookie_secure,
+        )
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
@@ -252,7 +335,10 @@ def create_app(
 
         return request.app.state.status_probe.snapshot()
 
-    @app.get("/api/v1/incidents")
+    @app.get(
+        "/api/v1/incidents" if app.state.auth_manager is None else "/internal/legacy/incidents",
+        include_in_schema=app.state.auth_manager is None,
+    )
     def incidents(
         data: Annotated[InMemoryStore, Depends(store)],
         _: Annotated[User, Depends(require("admin", "operator", "viewer"))],
@@ -272,7 +358,12 @@ def create_app(
             "page_size": page_size,
         }
 
-    @app.get("/api/v1/incidents/{incident_id}")
+    @app.get(
+        "/api/v1/incidents/{incident_id}"
+        if app.state.auth_manager is None
+        else "/internal/legacy/incidents/{incident_id}",
+        include_in_schema=app.state.auth_manager is None,
+    )
     def incident_detail(
         incident_id: str,
         data: Annotated[InMemoryStore, Depends(store)],
@@ -368,6 +459,7 @@ def create_app(
     def chat(
         session_id: str,
         payload: ChatMessage,
+        request: Request,
         data: Annotated[InMemoryStore, Depends(store)],
         _: Annotated[User, Depends(require("admin", "operator", "viewer"))],
     ) -> dict[str, Any]:
@@ -379,6 +471,25 @@ def create_app(
         if incident is None:
             raise ApiProblem(404, "INCIDENT_NOT_FOUND", "Incident does not exist")
         diagnosis = incident["diagnosis"]
+        client = request.app.state.mindie_client
+        if client is not None:
+            evidence_ids = {item["id"] for item in incident["evidence"]}
+            try:
+                generated = client.chat(
+                    payload.message,
+                    {"incident": incident, "deterministic_diagnosis": diagnosis},
+                    available_evidence_ids=evidence_ids,
+                )
+                result = generated if isinstance(generated, dict) else generated.model_dump()
+                return {
+                    "session_id": session_id,
+                    "answer": result["answer"],
+                    "source": "generative_ai",
+                    "evidence_refs": result["evidence_refs"],
+                }
+            except (httpx.HTTPError, KeyError, TypeError, ValueError):
+                # 模型不可达或输出越权时必须降级到已有诊断，不能把未校验内容返回给用户。
+                pass
         return {
             "session_id": session_id,
             "answer": diagnosis["summary"],
@@ -448,11 +559,13 @@ def create_app(
 
     @app.post("/agent/v1/enroll")
     def enroll_agent(
+        request: Request,
         payload: Enrollment,
         data: Annotated[InMemoryStore, Depends(store)],
         _: Annotated[User, Depends(require("agent", "admin"))],
     ) -> dict[str, Any]:
-        token = str(uuid.uuid4())
+        manager: AuthManager | None = request.app.state.auth_manager
+        token = secrets.token_urlsafe(48)
         data.agent_tokens[payload.node_id] = token
         data.nodes[payload.node_id] = {
             "id": payload.node_id,
@@ -462,6 +575,8 @@ def create_app(
             "status": "online",
         }
         data.persist_all()
+        if manager is not None:
+            token = manager.issue_agent_credential(payload.node_id)
         return {"node_id": payload.node_id, "enrollment_token": token, "mtls_required": True}
 
     @app.get("/agent/v1/actions/next", response_model=None)
@@ -566,8 +681,7 @@ def create_app(
 
         reports: list[tuple[float, dict[str, Any]]] = []
         for run_dir in root.iterdir():
-            # Directory names become URL path parameters, so only accept the
-            # same restricted identifier vocabulary as the detail endpoint.
+            # 目录名会进入 URL 路径参数，因此与详情接口使用相同的受限标识符规则。
             if not run_dir.is_dir() or not SAFE_EXPERIMENT_ID.fullmatch(run_dir.name):
                 continue
             report_path = (run_dir / "report.json").resolve()
@@ -576,8 +690,7 @@ def create_app(
             try:
                 report = read_evaluation_report(report_path)
             except (OSError, ValidationError):
-                # A partial or corrupt generator output must not be presented
-                # to the console as a completed evaluation run.
+                # 不完整或损坏的生成结果不能在控制台中伪装成已完成的评测。
                 continue
             report.update(
                 {
@@ -594,7 +707,10 @@ def create_app(
         items = [report for _, report in sorted(reports, key=lambda item: item[0], reverse=True)]
         return {"items": items, "total": len(items)}
 
-    @app.get("/api/v1/audit-logs")
+    @app.get(
+        "/api/v1/audit-logs" if app.state.auth_manager is None else "/internal/legacy/audit-logs",
+        include_in_schema=app.state.auth_manager is None,
+    )
     def audit_logs(
         data: Annotated[InMemoryStore, Depends(store)],
         _: Annotated[User, Depends(require("admin"))],

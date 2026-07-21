@@ -163,6 +163,50 @@ def test_chat_uses_a_live_incident_when_no_incident_id_is_selected() -> None:
     assert response.json()["answer"] == "Awaiting evidence correlation"
 
 
+def test_chat_uses_configured_generative_model_with_question_and_incident_context() -> None:
+    class FakeMindIE:
+        def chat(self, message, context, available_evidence_ids):
+            assert message == "数据库为什么连接失败？"
+            assert context["incident"]["id"] == "inc-db-pool"
+            assert available_evidence_ids == {"ev-db-connections", "ev-db-log"}
+            return {
+                "answer": "数据库连接数已接近上限，证据为 ev-db-connections。",
+                "evidence_refs": ["ev-db-connections"],
+            }
+
+    response = TestClient(create_app(seed_demo=True, mindie_client=FakeMindIE())).post(
+        "/api/v1/chat/sessions/ollama/messages",
+        headers=auth("viewer"),
+        json={"message": "数据库为什么连接失败？", "incident_id": "inc-db-pool"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "session_id": "ollama",
+        "answer": "数据库连接数已接近上限，证据为 ev-db-connections。",
+        "source": "generative_ai",
+        "evidence_refs": ["ev-db-connections"],
+    }
+
+
+def test_chat_falls_back_when_generative_model_is_unavailable() -> None:
+    class UnavailableMindIE:
+        def chat(self, message, context, available_evidence_ids):
+            raise httpx.ConnectError("model offline")
+
+    response = TestClient(
+        create_app(seed_demo=True, mindie_client=UnavailableMindIE())
+    ).post(
+        "/api/v1/chat/sessions/fallback/messages",
+        headers=auth("viewer"),
+        json={"message": "发生了什么？", "incident_id": "inc-db-pool"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["source"] == "deterministic_fallback"
+    assert response.json()["answer"] == "测试账号连接占满导致应用连接超时。"
+
+
 def test_diagnosis_can_run_without_mindie() -> None:
     response = client().post(
         "/api/v1/incidents/inc-db-pool/diagnose", headers=auth("operator")

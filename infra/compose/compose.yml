@@ -61,14 +61,28 @@ services:
     ports: ["4317:4317", "4318:4318"]
     depends_on: [tempo]
 
+  migrate:
+    build:
+      context: ../..
+      dockerfile: infra/compose/Dockerfile.python
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+    depends_on:
+      postgres: {condition: service_healthy}
+
   ops-api:
     build:
       context: ../..
       dockerfile: infra/compose/Dockerfile.python
     command: ["uvicorn", "kylin_aiops_api.main:app", "--host", "0.0.0.0", "--port", "8000"]
     environment:
-      DATABASE_URL: ${DATABASE_URL}
+      APP_ENV: school_test
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      AGENT_BOOTSTRAP_TOKEN: ${AGENT_BOOTSTRAP_TOKEN:?set AGENT_BOOTSTRAP_TOKEN}
+      COOKIE_SECURE: "true"
       ACTION_SIGNING_SECRET: ${ACTION_SIGNING_SECRET:?set ACTION_SIGNING_SECRET}
       MODEL_SERVICE_URL: http://model-service:8001
       MINDIE_BASE_URL: ${MINDIE_BASE_URL:-}
@@ -79,7 +93,7 @@ services:
     volumes:
       - ../../evaluation/reports/generated:/app/evaluation/reports/generated:ro
     depends_on:
-      postgres: {condition: service_healthy}
+      migrate: {condition: service_completed_successfully}
       redis: {condition: service_healthy}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz')"]
@@ -111,7 +125,10 @@ services:
     build:
       context: ../..
       dockerfile: infra/compose/Dockerfile.web
-    ports: ["8080:8080"]
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ${TLS_CERT_PATH:?set TLS_CERT_PATH}:/etc/nginx/tls/tls.crt:ro
+      - ${TLS_KEY_PATH:?set TLS_KEY_PATH}:/etc/nginx/tls/tls.key:ro
     depends_on:
       ops-api: {condition: service_healthy}
 

@@ -43,7 +43,7 @@ export default function OverviewPage() {
         <Col xs={12} xl={6}><Card><Statistic title="今日告警" value={overview.today_alerts} styles={{ content: { color: '#dc2626' } }} /></Card></Col>
         <Col xs={12} xl={6}><Card><Statistic title="待审批动作" value={overview.pending_actions} styles={{ content: { color: '#2563eb' } }} /></Card></Col>
       </Row>
-      <ServiceTopology nodes={overview.nodes} topology={overview.topology} rootNode={selected?.root_node} />
+      <ServiceTopology nodes={overview.nodes} topology={overview.topology} rootNode={selected?.root_node} propagationPath={selected?.diagnosis.propagation_path} />
       <section className="incident-table-panel"><div className="section-heading"><div><span>实时事件</span><h2>事件列表</h2></div></div><IncidentTable incidents={incidents} selectedId={selected?.id} onSelect={(item) => setSelectedIncidentId(item.id)} /></section>
     </main>
     {selected ? <IncidentInspector incident={selected} onApprove={() => approve.mutate(selected)} /> : <aside className="incident-inspector">暂无事件</aside>}

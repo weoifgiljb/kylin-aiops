@@ -1,8 +1,11 @@
+from kylin_aiops_api.database import Base
 from kylin_aiops_api.store import InMemoryStore
+from sqlalchemy import create_engine
 
 
 def test_store_reloads_nodes_and_incidents_from_database(tmp_path) -> None:
     url = f"sqlite+pysqlite:///{tmp_path / 'ops.db'}"
+    Base.metadata.create_all(create_engine(url))
     first = InMemoryStore(seed_demo=True, database_url=url)
     first.persist_all()
 

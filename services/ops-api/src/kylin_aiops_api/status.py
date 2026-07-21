@@ -49,9 +49,7 @@ class RuntimeStatusProbe:
         timeout_seconds: float = 2.0,
     ) -> None:
         self.model_service_url = model_service_url.rstrip("/") if model_service_url else None
-        self.generative_base_url = (
-            generative_base_url.rstrip("/") if generative_base_url else None
-        )
+        self.generative_base_url = generative_base_url.rstrip("/") if generative_base_url else None
         self.generative_model = generative_model
         self.generative_provider = generative_provider
         self.get = get
@@ -104,8 +102,7 @@ class RuntimeStatusProbe:
                 detail=f"模型服务探测失败：{type(exc).__name__}",
             )
 
-        # A healthy HTTP process can still be serving the deterministic fallback;
-        # distinguish that state from an Ascend-backed MindSpore predictor.
+        # HTTP 进程健康时仍可能只提供确定性降级能力，需要与昇腾 MindSpore 推理区分。
         if backend == "MindSporePredictor":
             return ComponentStatus(
                 status="available",

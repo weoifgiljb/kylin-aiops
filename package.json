@@ -1,0 +1,10 @@
+{
+  "name": "kylin-aiops-workspace",
+  "private": true,
+  "scripts": {
+    "generate:api": "pnpm --filter @kylin-aiops/api-client generate",
+    "test:web": "pnpm --filter @kylin-aiops/web test",
+    "lint:web": "pnpm --filter @kylin-aiops/web lint",
+    "build:web": "pnpm --filter @kylin-aiops/web build"
+  }
+}

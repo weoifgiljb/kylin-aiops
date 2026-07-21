@@ -5,5 +5,8 @@ WORKDIR /opt/kylin-aiops
 COPY pyproject.toml ./
 COPY services ./services
 COPY agents ./agents
+COPY alembic.ini ./
+COPY migrations ./migrations
+COPY tools ./tools
 RUN pip install --no-cache-dir .
 USER 65532:65532

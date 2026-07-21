@@ -2,8 +2,8 @@ import { render, screen } from '@testing-library/react'
 
 import { ServiceTopology } from './ServiceTopology'
 
-test('renders the fixed three-node lab dependency chain', () => {
-  render(
+test('拓扑节点和图例使用一致的根因、传播中、正常配色', () => {
+  const { container } = render(
     <ServiceTopology
       nodes={[
         { id: 'web-01', hostname: 'web-01', status: 'online', service: 'nginx' },
@@ -15,12 +15,19 @@ test('renders the fixed three-node lab dependency chain', () => {
         { source: 'app-01', target: 'db-01', confidence: 1 },
       ]}
       rootNode="db-01"
+      propagationPath={['db-01', 'app-01']}
     />,
   )
 
   expect(screen.getByText('Nginx')).toBeInTheDocument()
   expect(screen.getByText('Java 服务')).toBeInTheDocument()
   expect(screen.getByText('MySQL')).toBeInTheDocument()
+  expect(container.querySelector('.flow-node-root')).toHaveStyle({ borderColor: '#ef4444' })
+  expect(container.querySelector('.flow-node-propagating')).toHaveStyle({ borderColor: '#f59e0b' })
+  expect(container.querySelector('.flow-node-normal')).toHaveStyle({ borderColor: '#22c55e' })
+  expect(screen.getByLabelText('根因颜色')).toHaveStyle({ backgroundColor: '#ef4444' })
+  expect(screen.getByLabelText('传播中颜色')).toHaveStyle({ backgroundColor: '#f59e0b' })
+  expect(screen.getByLabelText('正常颜色')).toHaveStyle({ backgroundColor: '#22c55e' })
 })
 
 test('renders live metrics reported by an enrolled agent', () => {

@@ -1,0 +1,9 @@
+packages:
+  - apps/*
+  - packages/*
+
+allowBuilds:
+  esbuild: true
+
+overrides:
+  '@kylin-aiops/api-client': link:packages/api-client

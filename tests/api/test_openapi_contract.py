@@ -1,0 +1,13 @@
+from tools.export_openapi import build_openapi_document
+
+
+def test_exported_openapi_contains_management_contract() -> None:
+    document = build_openapi_document()
+
+    assert "/api/v1/auth/token" in document["paths"]
+    assert "/api/v1/admin/users" in document["paths"]
+    assert "/api/v1/resources/nodes" in document["paths"]
+    assert "post" in document["paths"]["/api/v1/incidents"]
+    assert document["components"]["securitySchemes"]["HumanOAuth2"]["flows"]["password"][
+        "tokenUrl"
+    ] == "/api/v1/auth/token"

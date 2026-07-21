@@ -1,5 +1,6 @@
 .venv/
 .verification-report/
+.playwright-cli/
 .api-dev.*.log
 .web-dev.*.log
 __pycache__/

@@ -1,22 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
-import {
-  Alert,
-  Button,
-  Card,
-  Descriptions,
-  Form,
-  Input,
-  Select,
-  Space,
-  Table,
-  Tabs,
-  Tag,
-  Typography,
-} from 'antd'
-import { useState } from 'react'
+import { Alert, Card, Descriptions, Space, Table, Tabs, Tag, Typography } from 'antd'
 
-import { api, getToken, setToken } from '../../api/client'
+import { api } from '../../api/client'
 import type { ComponentRuntimeStatus, RuntimeState } from '../../api/types'
+import { useAuth } from '../auth/auth-state'
 
 const actions = [
   ['restart_demo_service', 'app-01', '重启 Java Demo Service'],
@@ -34,7 +21,7 @@ const statusPresentation: Record<RuntimeState, { color: string; label: string }>
   unreachable: { color: 'red', label: '不可达' },
 }
 
-/** Render observed runtime state and retain the backend detail needed for diagnosis. */
+/** 展示后端观测到的运行状态，并保留定位故障需要的实现信息。 */
 function RuntimeStatusValue({ value }: { value: ComponentRuntimeStatus }) {
   const presentation = statusPresentation[value.status]
   const runtimeName = [value.backend, value.model].filter(Boolean).join(' / ')
@@ -47,7 +34,7 @@ function RuntimeStatusValue({ value }: { value: ComponentRuntimeStatus }) {
 }
 
 export default function SettingsPage() {
-  const [token, updateToken] = useState(getToken())
+  const { user } = useAuth()
   const statusQuery = useQuery({
     queryKey: ['system-status'],
     queryFn: api.systemStatus,
@@ -55,31 +42,15 @@ export default function SettingsPage() {
   })
 
   const identity = (
-    <div>
-      <Typography.Title level={4}>开发环境身份</Typography.Title>
-      <Form layout="vertical" onFinish={() => setToken(token)}>
-        <Form.Item label="角色模板">
-          <Select
-            value={token}
-            onChange={(value) => { setToken(value); updateToken(value) }}
-            options={[
-              { label: '管理员', value: 'dev-admin-token' },
-              { label: '运维员', value: 'dev-operator-token' },
-              { label: '只读用户', value: 'dev-viewer-token' },
-            ]}
-          />
-        </Form.Item>
-        <Form.Item label="Bearer Token">
-          <Space.Compact block>
-            <Input.Password value={token} onChange={(event) => updateToken(event.target.value)} />
-            <Button htmlType="submit" type="primary">保存</Button>
-          </Space.Compact>
-        </Form.Item>
-      </Form>
-      <Typography.Paragraph type="secondary">
-        生产环境必须由统一身份服务签发 Token；页面不会信任用户自报角色。
-      </Typography.Paragraph>
-    </div>
+    <Descriptions bordered column={1}>
+      <Descriptions.Item label="当前账号">{user?.display_name || user?.username}</Descriptions.Item>
+      <Descriptions.Item label="用户名">{user?.username}</Descriptions.Item>
+      <Descriptions.Item label="角色"><Tag color="blue">{user?.role}</Tag></Descriptions.Item>
+      <Descriptions.Item label="会话安全">
+        access token 仅保存在当前页面内存中，refresh token 由安全 Cookie 管理。
+      </Descriptions.Item>
+      <Descriptions.Item label="账号管理">账号、角色与密码由管理员统一维护。</Descriptions.Item>
+    </Descriptions>
   )
 
   const modelStatus = statusQuery.isError
@@ -103,7 +74,7 @@ export default function SettingsPage() {
           label: '节点注册',
           children: (
             <Descriptions bordered column={1}>
-              <Descriptions.Item label="注册方式">Agent 主动注册，生产要求 mTLS</Descriptions.Item>
+              <Descriptions.Item label="注册方式">Agent 使用独立凭据主动注册，不接受人类用户 JWT</Descriptions.Item>
               <Descriptions.Item label="离线判定">最后遥测超过 30 秒</Descriptions.Item>
               <Descriptions.Item label="远程端口"><Tag color="green">不开放</Tag></Descriptions.Item>
             </Descriptions>
@@ -119,7 +90,7 @@ export default function SettingsPage() {
             { title: '安全边界', dataIndex: 'description' },
           ]} />,
         },
-        { key: 'permissions', label: '用户权限', children: identity },
+        { key: 'permissions', label: '账号与会话', children: identity },
       ]} />
     </Card>
   )

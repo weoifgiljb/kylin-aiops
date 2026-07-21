@@ -2,8 +2,12 @@
   "name": "@kylin-aiops/api-client",
   "private": true,
   "version": "0.1.0",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema.ts"
+  },
   "scripts": {
-    "generate": "openapi-typescript ../../services/ops-api/openapi.json -o src/schema.ts"
+    "generate": "openapi-typescript ../../services/ops-api/openapi.json -o src/schema.ts && node scripts/strip-generated-comments.mjs"
   },
   "devDependencies": {
     "openapi-typescript": "^7.6.0"

@@ -1,4 +1,4 @@
-"""SQLAlchemy persistence schema for assets, incidents, evidence, actions, and evaluations."""
+"""定义资产、事件、认证、动作和评测数据的 SQLAlchemy 持久化结构。"""
 
 from datetime import datetime
 from typing import Any
@@ -14,11 +14,19 @@ class Base(DeclarativeBase):
 class NodeRow(Base):
     __tablename__ = "nodes"
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    hostname: Mapped[str] = mapped_column(String(255), unique=True)
+    hostname: Mapped[str | None] = mapped_column(String(255), unique=True)
     architecture: Mapped[str | None] = mapped_column(String(64))
     kylin_version: Mapped[str | None] = mapped_column(String(128))
     status: Mapped[str] = mapped_column(String(32), default="offline")
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    display_name: Mapped[str] = mapped_column(String(128), default="")
+    description: Mapped[str] = mapped_column(Text, default="")
+    tags: Mapped[list[str]] = mapped_column(JSON, default=list)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    __mapper_args__ = {"version_id_col": version, "version_id_generator": False}
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    archived_by: Mapped[str | None] = mapped_column(String(128))
 
 
 class ServiceRow(Base):
@@ -28,6 +36,12 @@ class ServiceRow(Base):
     name: Mapped[str] = mapped_column(String(128))
     service_type: Mapped[str] = mapped_column(String(64))
     status: Mapped[str] = mapped_column(String(32))
+    description: Mapped[str] = mapped_column(Text, default="")
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    __mapper_args__ = {"version_id_col": version, "version_id_generator": False}
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    archived_by: Mapped[str | None] = mapped_column(String(128))
 
 
 class DependencyEdgeRow(Base):
@@ -38,6 +52,10 @@ class DependencyEdgeRow(Base):
     source: Mapped[str] = mapped_column(String(32))
     confidence: Mapped[float] = mapped_column(Float)
     observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    __mapper_args__ = {"version_id_col": version, "version_id_generator": False}
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    archived_by: Mapped[str | None] = mapped_column(String(128))
 
 
 class IncidentRow(Base):
@@ -50,6 +68,49 @@ class IncidentRow(Base):
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     root_node_id: Mapped[str | None] = mapped_column(ForeignKey("nodes.id"))
+    source: Mapped[str] = mapped_column(String(32), default="alert", index=True)
+    assignee_user_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    handling_notes: Mapped[str] = mapped_column(Text, default="")
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    __mapper_args__ = {"version_id_col": version, "version_id_generator": False}
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    archived_by: Mapped[str | None] = mapped_column(String(128))
+
+
+class UserRow(Base):
+    __tablename__ = "users"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    username: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    display_name: Mapped[str] = mapped_column(String(128))
+    password_hash: Mapped[str] = mapped_column(Text)
+    role: Mapped[str] = mapped_column(String(32), index=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    __mapper_args__ = {"version_id_col": version, "version_id_generator": False}
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    archived_by: Mapped[str | None] = mapped_column(String(128))
+
+
+class AuthSessionRow(Base):
+    __tablename__ = "auth_sessions"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    refresh_token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class AgentCredentialRow(Base):
+    __tablename__ = "agent_credentials"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    node_id: Mapped[str] = mapped_column(ForeignKey("nodes.id", ondelete="CASCADE"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class EvidenceRow(Base):
