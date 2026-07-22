@@ -2125,27 +2125,6 @@
         }
       }
     },
-    "/api/v1/events/stream": {
-      "get": {
-        "summary": "Event Stream",
-        "operationId": "event_stream_api_v1_events_stream_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HumanOAuth2": []
-          }
-        ]
-      }
-    },
     "/api/v1/chat/sessions/{session_id}/messages": {
       "post": {
         "summary": "Chat",

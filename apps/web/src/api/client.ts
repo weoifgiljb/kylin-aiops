@@ -3,7 +3,6 @@ import type { components } from '@kylin-aiops/api-client'
 import type {
   ApiProblemBody,
   CurrentUser,
-  EvaluationRun,
   EvaluationRunList,
   Incident,
   ManagedNode,
@@ -39,10 +38,6 @@ export class ApiError extends Error {
   constructor(public readonly problem: ApiProblemBody, public readonly status: number) {
     super(problem.message)
   }
-}
-
-export function getAccessToken(): string | null {
-  return accessToken
 }
 
 export function clearAccessToken(): void {
@@ -140,7 +135,6 @@ export const api = {
   incidents: (params: ListParams) => request<Schemas['IncidentPage']>(
     `/api/v1/incidents?${listQuery(params)}`,
   ),
-  incident: (id: string) => request<Incident>(`/api/v1/incidents/${id}`),
   createIncident: (body: Schemas['IncidentCreate']) => request<Incident>('/api/v1/incidents', {
     method: 'POST', body: JSON.stringify(body),
   }),
@@ -154,7 +148,6 @@ export const api = {
   restoreIncident: (id: string, version: number) => request<Incident>(`/api/v1/incidents/${id}/restore`, {
     method: 'POST', headers: versionHeader(version),
   }),
-  diagnose: (id: string) => request<Incident['diagnosis']>(`/api/v1/incidents/${id}/diagnose`, { method: 'POST' }),
   chat: (sessionId: string, message: string, incidentId?: string) =>
     request<{ answer: string; source: string; evidence_refs: string[] }>(
       `/api/v1/chat/sessions/${sessionId}/messages`,
@@ -167,7 +160,6 @@ export const api = {
   approveAction: (actionId: string) =>
     request<{ id: string; status: string }>(`/api/v1/action-requests/${actionId}/approve`, { method: 'POST' }),
   evaluations: () => request<EvaluationRunList>('/api/v1/evaluations/runs'),
-  evaluation: (id: string) => request<EvaluationRun>(`/api/v1/evaluations/runs/${id}`),
   users: (params: ListParams) => request<Schemas['UserPage']>(
     `/api/v1/admin/users?${listQuery(params)}`,
   ),
@@ -238,24 +230,4 @@ export const api = {
     }
     return request<Schemas['AuditLogPage']>(`/api/v1/audit-logs?${query}`)
   },
-}
-
-export async function streamEvents(signal: AbortSignal, onEvent: () => void): Promise<void> {
-  const response = await fetch(`${apiBase}/api/v1/events/stream`, {
-    credentials: 'include',
-    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
-    signal,
-  })
-  if (!response.ok || !response.body) throw new Error('事件流连接失败')
-  const reader = response.body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
-  while (!signal.aborted) {
-    const { done, value } = await reader.read()
-    if (done) break
-    buffer += decoder.decode(value, { stream: true })
-    const messages = buffer.split('\n\n')
-    buffer = messages.pop() ?? ''
-    messages.forEach(() => onEvent())
-  }
 }

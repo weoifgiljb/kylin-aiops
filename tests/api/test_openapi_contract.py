@@ -20,3 +20,9 @@ def test_public_list_responses_have_concrete_item_schemas() -> None:
 
     assert schema["$ref"].endswith("/IncidentPage")
     assert "IncidentResponse" in document["components"]["schemas"]
+
+
+def test_openapi_does_not_expose_heartbeat_only_event_stream() -> None:
+    document = build_openapi_document()
+
+    assert "/api/v1/events/stream" not in document["paths"]

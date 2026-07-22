@@ -16,6 +16,7 @@ export default function IncidentsPage() {
   const { data } = useQuery({
     queryKey: ['incidents', page, pageSize],
     queryFn: () => api.incidents({ page, pageSize }),
+    refetchInterval: 15_000,
   })
   const [selected, setSelected] = useState<Incident | null>(null)
   const [editing, setEditing] = useState<Incident | 'new' | null>(null)

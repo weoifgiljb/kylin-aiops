@@ -1,6 +1,5 @@
 """提供事件、Agent、受控动作、运行状态和管理能力的 FastAPI 入口。"""
 
-import asyncio
 import os
 import re
 import secrets
@@ -15,7 +14,7 @@ import httpx
 from fastapi import Depends, FastAPI, Query, Request, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordBearer
 from kylin_aiops_diagnosis.mindie import MindIEClient
 from pydantic import BaseModel, Field, ValidationError
@@ -398,18 +397,6 @@ def create_app(
             return result
         except (httpx.HTTPError, KeyError, TypeError, ValueError) as exc:
             return {**fallback, "degraded_reason": type(exc).__name__}
-
-    @app.get("/api/v1/events/stream")
-    async def event_stream(
-        _: Annotated[User, Depends(require("admin", "operator", "viewer"))],
-    ) -> StreamingResponse:
-        async def events():
-            yield 'event: ready\ndata: {"connected":true}\n\n'
-            while True:
-                await asyncio.sleep(15)
-                yield 'event: heartbeat\ndata: {"connected":true}\n\n'
-
-        return StreamingResponse(events(), media_type="text/event-stream")
 
     @app.post("/api/v1/chat/sessions/{session_id}/messages")
     def chat(

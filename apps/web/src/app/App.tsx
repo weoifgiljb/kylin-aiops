@@ -5,7 +5,6 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from '../components/AppShell'
 import { useAuth } from '../features/auth/auth-state'
 import LoginPage from '../features/auth/LoginPage'
-import { EventStreamBridge } from './EventStreamBridge'
 
 const OverviewPage = lazy(() => import('../features/overview/OverviewPage'))
 const IncidentsPage = lazy(() => import('../features/incidents/IncidentsPage'))
@@ -31,7 +30,6 @@ export function App() {
     <ConfigProvider theme={theme}>
       <AntApp>
         <AppShell user={auth.user} onLogout={() => void auth.logout()}>
-          <EventStreamBridge />
           <Suspense fallback={<div className="loading-screen">正在加载…</div>}>
             <Routes>
               <Route path="/" element={<OverviewPage />} />
