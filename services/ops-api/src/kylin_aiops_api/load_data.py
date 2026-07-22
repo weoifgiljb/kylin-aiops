@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import delete, func, or_, select
+from sqlalchemy import and_, delete, func, or_, select
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import InstrumentedAttribute, Session
@@ -224,6 +224,13 @@ def _reject_pending_changes(session: Session) -> None:
 def _reject_external_references(session: Session) -> None:
     """发现真实关联记录时拒绝清理，防止数据库级联删除超出压测范围的数据。"""
     checks = (
+        (
+            ServiceRow,
+            and_(
+                _has_prefix(ServiceRow.node_id, LOAD_NODE_PREFIX),
+                ~_has_prefix(ServiceRow.id, LOAD_SERVICE_PREFIX),
+            ),
+        ),
         (
             DependencyEdgeRow,
             or_(

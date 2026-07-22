@@ -195,6 +195,31 @@ def test_purge_rejects_load_data_referenced_by_real_evidence(session: Session) -
     assert session.get(EvidenceRow, "real-evidence-01") is not None
 
 
+def test_purge_rejects_real_service_on_load_node(session: Session) -> None:
+    seed_load_data(session, LoadDataConfig(count=2, seed=42, batch_size=2))
+    session.add(
+        ServiceRow(
+            id="real-service-on-load-node",
+            node_id="load-node-000000",
+            name="production-service",
+            service_type="web",
+            status="running",
+            description="真实服务不得随压测节点级联删除",
+            enabled=True,
+            version=1,
+            archived_at=None,
+            archived_by=None,
+        )
+    )
+    session.commit()
+
+    with pytest.raises(ValueError, match="关联"):
+        purge_load_data(session)
+
+    assert session.get(ServiceRow, "real-service-on-load-node") is not None
+    assert table_counts(session) == {"nodes": 2, "services": 3, "telemetry": 2, "incidents": 2}
+
+
 def test_purge_does_not_match_uppercase_prefix(session: Session) -> None:
     session.add(
         NodeRow(
