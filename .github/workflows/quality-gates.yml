@@ -18,6 +18,8 @@ jobs:
           cache: pip
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e '.[dev]'
+      - run: python tools/export_openapi.py
+      - run: git diff --exit-code -- services/ops-api/openapi.json
       - run: python -m pytest
       - run: python -m ruff check .
 
