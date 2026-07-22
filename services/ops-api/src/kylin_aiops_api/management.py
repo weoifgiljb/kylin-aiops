@@ -24,6 +24,19 @@ from .database import (
     UserRow,
 )
 from .pagination import page_response, page_scalars
+from .schemas import (
+    AuditLogPage,
+    DependencyPage,
+    DependencyResponse,
+    IncidentPage,
+    IncidentResponse,
+    NodePage,
+    NodeResponse,
+    ServicePage,
+    ServiceResponse,
+    UserPage,
+    UserResponse,
+)
 from .serializers import serialize_incident
 
 CurrentUserDependency = Callable[..., AuthUser]
@@ -195,7 +208,7 @@ def register_management_routes(
     def me(user: Annotated[AuthUser, Depends(require("admin", "operator", "viewer"))]) -> AuthUser:
         return user
 
-    @app.get("/api/v1/admin/users")
+    @app.get("/api/v1/admin/users", response_model=UserPage)
     def list_users(
         _: Annotated[AuthUser, Depends(require("admin"))],
         page: int = Query(default=1, ge=1),
@@ -224,7 +237,7 @@ def register_management_routes(
                 page_size,
             )
 
-    @app.post("/api/v1/admin/users", status_code=201)
+    @app.post("/api/v1/admin/users", status_code=201, response_model=UserResponse)
     def create_user(
         payload: UserCreate,
         actor: Annotated[AuthUser, Depends(require("admin"))],
@@ -252,7 +265,7 @@ def register_management_routes(
                 raise ApiProblem(409, "USERNAME_EXISTS", "用户名已经存在") from exc
             return _user(row)
 
-    @app.patch("/api/v1/admin/users/{user_id}")
+    @app.patch("/api/v1/admin/users/{user_id}", response_model=UserResponse)
     def update_user(
         user_id: str,
         payload: UserUpdate,
@@ -277,7 +290,10 @@ def register_management_routes(
             session.commit()
             return _user(row)
 
-    @app.post("/api/v1/admin/users/{user_id}/reset-password")
+    @app.post(
+        "/api/v1/admin/users/{user_id}/reset-password",
+        response_model=UserResponse,
+    )
     def reset_password(
         user_id: str,
         payload: PasswordReset,
@@ -295,7 +311,7 @@ def register_management_routes(
             session.commit()
             return _user(row)
 
-    @app.delete("/api/v1/admin/users/{user_id}")
+    @app.delete("/api/v1/admin/users/{user_id}", response_model=UserResponse)
     def archive_user(
         user_id: str,
         version: Annotated[int, Depends(expected_version)],
@@ -315,7 +331,7 @@ def register_management_routes(
             session.commit()
             return _user(row)
 
-    @app.post("/api/v1/admin/users/{user_id}/restore")
+    @app.post("/api/v1/admin/users/{user_id}/restore", response_model=UserResponse)
     def restore_user(
         user_id: str,
         version: Annotated[int, Depends(expected_version)],
@@ -333,7 +349,7 @@ def register_management_routes(
     _register_resource_routes(app, sessions, require, expected_version, audit)
     _register_incident_routes(app, sessions, require, expected_version, audit)
 
-    @app.get("/api/v1/audit-logs")
+    @app.get("/api/v1/audit-logs", response_model=AuditLogPage)
     def audit_logs(
         _: Annotated[AuthUser, Depends(require("admin"))],
         page: int = Query(default=1, ge=1),
@@ -371,7 +387,7 @@ def register_management_routes(
 
 
 def _register_resource_routes(app, sessions, require, expected_version, audit) -> None:
-    @app.get("/api/v1/resources/nodes")
+    @app.get("/api/v1/resources/nodes", response_model=NodePage)
     def nodes(
         _: Annotated[AuthUser, Depends(require("admin"))],
         page: int = Query(default=1, ge=1),
@@ -395,7 +411,7 @@ def _register_resource_routes(app, sessions, require, expected_version, audit) -
                 page_size,
             )
 
-    @app.post("/api/v1/resources/nodes", status_code=201)
+    @app.post("/api/v1/resources/nodes", status_code=201, response_model=NodeResponse)
     def create_node(
         payload: NodeCreate,
         actor: Annotated[AuthUser, Depends(require("admin"))],
@@ -424,7 +440,7 @@ def _register_resource_routes(app, sessions, require, expected_version, audit) -
                 raise ApiProblem(409, "NODE_EXISTS", "节点标识已经存在") from exc
             return _node(row)
 
-    @app.patch("/api/v1/resources/nodes/{node_id}")
+    @app.patch("/api/v1/resources/nodes/{node_id}", response_model=NodeResponse)
     def update_node(
         node_id: str,
         payload: NodeUpdate,
@@ -442,7 +458,7 @@ def _register_resource_routes(app, sessions, require, expected_version, audit) -
             session.commit()
             return _node(row)
 
-    @app.delete("/api/v1/resources/nodes/{node_id}")
+    @app.delete("/api/v1/resources/nodes/{node_id}", response_model=NodeResponse)
     def archive_node(
         node_id: str,
         version: Annotated[int, Depends(expected_version)],
@@ -470,7 +486,7 @@ def _register_resource_routes(app, sessions, require, expected_version, audit) -
             session.commit()
             return _node(row)
 
-    @app.post("/api/v1/resources/nodes/{node_id}/restore")
+    @app.post("/api/v1/resources/nodes/{node_id}/restore", response_model=NodeResponse)
     def restore_node(
         node_id: str,
         version: Annotated[int, Depends(expected_version)],
@@ -484,7 +500,7 @@ def _register_resource_routes(app, sessions, require, expected_version, audit) -
             session.commit()
             return _node(row)
 
-    @app.get("/api/v1/resources/services")
+    @app.get("/api/v1/resources/services", response_model=ServicePage)
     def services(
         _: Annotated[AuthUser, Depends(require("admin"))],
         page: int = Query(default=1, ge=1),
@@ -508,7 +524,11 @@ def _register_resource_routes(app, sessions, require, expected_version, audit) -
                 page_size,
             )
 
-    @app.post("/api/v1/resources/services", status_code=201)
+    @app.post(
+        "/api/v1/resources/services",
+        status_code=201,
+        response_model=ServiceResponse,
+    )
     def create_service(
         payload: ServiceCreate,
         actor: Annotated[AuthUser, Depends(require("admin"))],
@@ -535,7 +555,7 @@ def _register_resource_routes(app, sessions, require, expected_version, audit) -
                 raise ApiProblem(409, "SERVICE_EXISTS", "服务标识已经存在") from exc
             return _service(row)
 
-    @app.patch("/api/v1/resources/services/{service_id}")
+    @app.patch("/api/v1/resources/services/{service_id}", response_model=ServiceResponse)
     def update_service(
         service_id: str,
         payload: ServiceUpdate,
@@ -561,7 +581,7 @@ def _register_resource_routes(app, sessions, require, expected_version, audit) -
             session.commit()
             return _service(row)
 
-    @app.delete("/api/v1/resources/services/{service_id}")
+    @app.delete("/api/v1/resources/services/{service_id}", response_model=ServiceResponse)
     def archive_service(
         service_id: str,
         version: Annotated[int, Depends(expected_version)],
@@ -586,7 +606,10 @@ def _register_resource_routes(app, sessions, require, expected_version, audit) -
             session.commit()
             return _service(row)
 
-    @app.post("/api/v1/resources/services/{service_id}/restore")
+    @app.post(
+        "/api/v1/resources/services/{service_id}/restore",
+        response_model=ServiceResponse,
+    )
     def restore_service(
         service_id: str,
         version: Annotated[int, Depends(expected_version)],
@@ -600,7 +623,7 @@ def _register_resource_routes(app, sessions, require, expected_version, audit) -
             session.commit()
             return _service(row)
 
-    @app.get("/api/v1/resources/dependencies")
+    @app.get("/api/v1/resources/dependencies", response_model=DependencyPage)
     def dependencies(
         _: Annotated[AuthUser, Depends(require("admin"))],
         page: int = Query(default=1, ge=1),
@@ -624,7 +647,11 @@ def _register_resource_routes(app, sessions, require, expected_version, audit) -
                 page_size,
             )
 
-    @app.post("/api/v1/resources/dependencies", status_code=201)
+    @app.post(
+        "/api/v1/resources/dependencies",
+        status_code=201,
+        response_model=DependencyResponse,
+    )
     def create_dependency(
         payload: DependencyCreate,
         actor: Annotated[AuthUser, Depends(require("admin"))],
@@ -671,7 +698,10 @@ def _register_resource_routes(app, sessions, require, expected_version, audit) -
             session.commit()
             return _dependency(row)
 
-    @app.delete("/api/v1/resources/dependencies/{dependency_id}")
+    @app.delete(
+        "/api/v1/resources/dependencies/{dependency_id}",
+        response_model=DependencyResponse,
+    )
     def archive_dependency(
         dependency_id: int,
         version: Annotated[int, Depends(expected_version)],
@@ -693,7 +723,10 @@ def _register_resource_routes(app, sessions, require, expected_version, audit) -
             session.commit()
             return _dependency(row)
 
-    @app.patch("/api/v1/resources/dependencies/{dependency_id}")
+    @app.patch(
+        "/api/v1/resources/dependencies/{dependency_id}",
+        response_model=DependencyResponse,
+    )
     def update_dependency(
         dependency_id: int,
         payload: DependencyUpdate,
@@ -741,7 +774,10 @@ def _register_resource_routes(app, sessions, require, expected_version, audit) -
             session.commit()
             return _dependency(row)
 
-    @app.post("/api/v1/resources/dependencies/{dependency_id}/restore")
+    @app.post(
+        "/api/v1/resources/dependencies/{dependency_id}/restore",
+        response_model=DependencyResponse,
+    )
     def restore_dependency(
         dependency_id: int,
         version: Annotated[int, Depends(expected_version)],
@@ -765,7 +801,7 @@ def _register_resource_routes(app, sessions, require, expected_version, audit) -
 
 
 def _register_incident_routes(app, sessions, require, expected_version, audit) -> None:
-    @app.get("/api/v1/incidents")
+    @app.get("/api/v1/incidents", response_model=IncidentPage)
     def incidents(
         _: Annotated[AuthUser, Depends(require("admin", "operator", "viewer"))],
         page: int = Query(default=1, ge=1),
@@ -812,7 +848,7 @@ def _register_incident_routes(app, sessions, require, expected_version, audit) -
             ]
             return page_response(items, result.total, page, page_size)
 
-    @app.get("/api/v1/incidents/{incident_id}")
+    @app.get("/api/v1/incidents/{incident_id}", response_model=IncidentResponse)
     def incident(
         incident_id: str,
         _: Annotated[AuthUser, Depends(require("admin", "operator", "viewer"))],
@@ -821,7 +857,7 @@ def _register_incident_routes(app, sessions, require, expected_version, audit) -
             row = _get(session, IncidentRow, incident_id, "INCIDENT_NOT_FOUND", "事件不存在")
             return _incident(row, session)
 
-    @app.post("/api/v1/incidents", status_code=201)
+    @app.post("/api/v1/incidents", status_code=201, response_model=IncidentResponse)
     def create_incident(
         payload: IncidentCreate,
         actor: Annotated[AuthUser, Depends(require("admin", "operator"))],
@@ -851,7 +887,7 @@ def _register_incident_routes(app, sessions, require, expected_version, audit) -
             session.commit()
             return _incident(row, session)
 
-    @app.patch("/api/v1/incidents/{incident_id}")
+    @app.patch("/api/v1/incidents/{incident_id}", response_model=IncidentResponse)
     def update_incident(
         incident_id: str,
         payload: IncidentUpdate,
@@ -884,7 +920,7 @@ def _register_incident_routes(app, sessions, require, expected_version, audit) -
             session.commit()
             return _incident(row, session)
 
-    @app.delete("/api/v1/incidents/{incident_id}")
+    @app.delete("/api/v1/incidents/{incident_id}", response_model=IncidentResponse)
     def archive_incident(
         incident_id: str,
         version: Annotated[int, Depends(expected_version)],
@@ -902,7 +938,10 @@ def _register_incident_routes(app, sessions, require, expected_version, audit) -
             session.commit()
             return _incident(row, session)
 
-    @app.post("/api/v1/incidents/{incident_id}/restore")
+    @app.post(
+        "/api/v1/incidents/{incident_id}/restore",
+        response_model=IncidentResponse,
+    )
     def restore_incident(
         incident_id: str,
         version: Annotated[int, Depends(expected_version)],

@@ -20,8 +20,12 @@ export default function IncidentsPage() {
 
   const save = useMutation({
     mutationFn: (values: Record<string, unknown>) => editing === 'new'
-      ? api.createIncident(values)
-      : api.updateIncident(editing!.id, editing!.version, values),
+      ? api.createIncident(values as Parameters<typeof api.createIncident>[0])
+      : api.updateIncident(
+          editing!.id,
+          editing!.version,
+          values as Parameters<typeof api.updateIncident>[2],
+        ),
     onSuccess: (incident) => {
       setEditing(null)
       setSelected(incident)
@@ -40,6 +44,7 @@ export default function IncidentsPage() {
     mutationFn: async (incident: Incident) => {
       const actionName = incident.diagnosis.action_candidates[0]
       if (!actionName) throw new Error('当前诊断没有可执行的白名单动作')
+      if (!incident.root_node) throw new Error('当前事件没有可执行动作的目标节点')
       const preview = await api.previewAction(incident.id, {
         node_id: incident.root_node,
         action_name: actionName,

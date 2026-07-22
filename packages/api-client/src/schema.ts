@@ -586,6 +586,23 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        ActionResponse: {
+            id: string;
+            incident_id: string;
+            node_id: string;
+            action_name: string;
+            parameters: {
+                [key: string]: unknown;
+            };
+            created_at: string;
+            expires_at: string;
+            status: string;
+            approved_by?: string | null;
+            approved_at?: string | null;
+            risk?: string | null;
+            prechecks?: string[] | null;
+            rollback?: string | null;
+        };
         ActionResult: {
             exit_code: number;
             stdout: string;
@@ -606,6 +623,23 @@ export interface components {
         AlertWebhook: {
             status: "firing" | "resolved";
             alerts: components["schemas"]["Alert"][];
+        };
+        AuditLogPage: {
+            items: components["schemas"]["AuditLogResponse"][];
+            total: number;
+            page: number;
+            page_size: number;
+        };
+        AuditLogResponse: {
+            id: string;
+            actor_id: string;
+            action: string;
+            target: string;
+            request_id: string;
+            details: {
+                [key: string]: unknown;
+            };
+            created_at: string;
         };
         AuthUser: {
             id: string;
@@ -631,15 +665,49 @@ export interface components {
             source_service_id: string;
             target_service_id: string;
         };
+        DependencyPage: {
+            items: components["schemas"]["DependencyResponse"][];
+            total: number;
+            page: number;
+            page_size: number;
+        };
+        DependencyResponse: {
+            id: number;
+            source_service_id: string;
+            target_service_id: string;
+            source: string;
+            confidence: number;
+            observed_at: string;
+            version: number;
+            archived_at?: string | null;
+        };
         DependencyUpdate: {
             source_service_id?: string | null;
             target_service_id?: string | null;
+        };
+        DiagnosisResponse: {
+            summary: string;
+            root_cause: string;
+            severity: string;
+            propagation_path: string[];
+            evidence_refs: string[];
+            recommended_steps: string[];
+            action_candidates: string[];
+            confidence: number;
+            source: string;
         };
         Enrollment: {
             node_id: string;
             hostname: string;
             architecture: string;
             kylin_version: string;
+        };
+        EvidenceResponse: {
+            id: string;
+            kind: string;
+            node_id: string;
+            summary: string;
+            observed_at: string;
         };
         HTTPValidationError: {
             detail?: components["schemas"]["ValidationError"][];
@@ -651,6 +719,30 @@ export interface components {
             root_node_id?: string | null;
             assignee_user_id?: string | null;
             handling_notes: string;
+        };
+        IncidentPage: {
+            items: components["schemas"]["IncidentResponse"][];
+            total: number;
+            page: number;
+            page_size: number;
+        };
+        IncidentResponse: {
+            id: string;
+            title: string;
+            fault_type: string;
+            severity: string;
+            status: string;
+            source: string;
+            started_at: string;
+            ended_at?: string | null;
+            root_node?: string | null;
+            assignee_user_id?: string | null;
+            handling_notes: string;
+            version: number;
+            archived_at?: string | null;
+            propagation_path: string[];
+            evidence: components["schemas"]["EvidenceResponse"][];
+            diagnosis: components["schemas"]["DiagnosisResponse"];
         };
         IncidentUpdate: {
             title?: string | null;
@@ -668,11 +760,52 @@ export interface components {
             tags?: string[];
             enabled: boolean;
         };
+        NodePage: {
+            items: components["schemas"]["NodeResponse"][];
+            total: number;
+            page: number;
+            page_size: number;
+        };
+        NodeResponse: {
+            id: string;
+            display_name: string;
+            description: string;
+            tags: string[];
+            enabled: boolean;
+            hostname?: string | null;
+            architecture?: string | null;
+            kylin_version?: string | null;
+            status: string;
+            last_seen_at?: string | null;
+            version: number;
+            archived_at?: string | null;
+        };
         NodeUpdate: {
             display_name?: string | null;
             description?: string | null;
             tags?: string[] | null;
             enabled?: boolean | null;
+        };
+        OverviewNodeResponse: {
+            id: string;
+            hostname: string;
+            status: string;
+            service?: string | null;
+            architecture?: string | null;
+            kylin_version?: string | null;
+            last_seen_at?: string | null;
+            metrics?: {
+                [key: string]: number;
+            };
+        };
+        OverviewResponse: {
+            online_nodes: number;
+            total_nodes: number;
+            active_incidents: number;
+            today_alerts: number;
+            pending_actions: number;
+            nodes: components["schemas"]["OverviewNodeResponse"][];
+            topology: components["schemas"]["TopologyEdgeResponse"][];
         };
         PasswordReset: {
             password: string;
@@ -684,6 +817,23 @@ export interface components {
             service_type: string;
             description: string;
             enabled: boolean;
+        };
+        ServicePage: {
+            items: components["schemas"]["ServiceResponse"][];
+            total: number;
+            page: number;
+            page_size: number;
+        };
+        ServiceResponse: {
+            id: string;
+            node_id: string;
+            name: string;
+            service_type: string;
+            description: string;
+            enabled: boolean;
+            status: string;
+            version: number;
+            archived_at?: string | null;
         };
         ServiceUpdate: {
             node_id?: string | null;
@@ -705,11 +855,33 @@ export interface components {
                 [key: string]: number;
             };
         };
+        TopologyEdgeResponse: {
+            source: string;
+            target: string;
+            confidence: number;
+        };
         UserCreate: {
             username: string;
             display_name: string;
             password: string;
             role: "admin" | "operator" | "viewer";
+        };
+        UserPage: {
+            items: components["schemas"]["UserResponse"][];
+            total: number;
+            page: number;
+            page_size: number;
+        };
+        UserResponse: {
+            id: string;
+            username: string;
+            display_name: string;
+            role: "admin" | "operator" | "viewer";
+            is_active: boolean;
+            version: number;
+            created_at: string;
+            updated_at: string;
+            archived_at?: string | null;
         };
         UserUpdate: {
             display_name?: string | null;
@@ -861,9 +1033,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["UserPage"];
                 };
             };
             422: {
@@ -894,9 +1064,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["UserResponse"];
                 };
             };
             422: {
@@ -927,9 +1095,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["UserResponse"];
                 };
             };
             422: {
@@ -964,9 +1130,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["UserResponse"];
                 };
             };
             422: {
@@ -1001,9 +1165,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["UserResponse"];
                 };
             };
             422: {
@@ -1034,9 +1196,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["UserResponse"];
                 };
             };
             422: {
@@ -1054,6 +1214,7 @@ export interface operations {
             query?: {
                 page?: number;
                 page_size?: number;
+                q?: string | null;
                 include_archived?: boolean;
             };
             header?: never;
@@ -1067,9 +1228,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["NodePage"];
                 };
             };
             422: {
@@ -1100,9 +1259,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["NodeResponse"];
                 };
             };
             422: {
@@ -1133,9 +1290,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["NodeResponse"];
                 };
             };
             422: {
@@ -1170,9 +1325,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["NodeResponse"];
                 };
             };
             422: {
@@ -1203,9 +1356,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["NodeResponse"];
                 };
             };
             422: {
@@ -1223,6 +1374,7 @@ export interface operations {
             query?: {
                 page?: number;
                 page_size?: number;
+                q?: string | null;
                 include_archived?: boolean;
             };
             header?: never;
@@ -1236,9 +1388,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["ServicePage"];
                 };
             };
             422: {
@@ -1269,9 +1419,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["ServiceResponse"];
                 };
             };
             422: {
@@ -1302,9 +1450,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["ServiceResponse"];
                 };
             };
             422: {
@@ -1339,9 +1485,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["ServiceResponse"];
                 };
             };
             422: {
@@ -1372,9 +1516,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["ServiceResponse"];
                 };
             };
             422: {
@@ -1405,9 +1547,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["DependencyPage"];
                 };
             };
             422: {
@@ -1438,9 +1578,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["DependencyResponse"];
                 };
             };
             422: {
@@ -1471,9 +1609,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["DependencyResponse"];
                 };
             };
             422: {
@@ -1508,9 +1644,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["DependencyResponse"];
                 };
             };
             422: {
@@ -1541,9 +1675,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["DependencyResponse"];
                 };
             };
             422: {
@@ -1576,9 +1708,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["IncidentPage"];
                 };
             };
             422: {
@@ -1609,9 +1739,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["IncidentResponse"];
                 };
             };
             422: {
@@ -1640,9 +1768,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["IncidentResponse"];
                 };
             };
             422: {
@@ -1673,9 +1799,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["IncidentResponse"];
                 };
             };
             422: {
@@ -1710,9 +1834,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["IncidentResponse"];
                 };
             };
             422: {
@@ -1743,9 +1865,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["IncidentResponse"];
                 };
             };
             422: {
@@ -1780,9 +1900,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["AuditLogPage"];
                 };
             };
             422: {
@@ -1830,9 +1948,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["OverviewResponse"];
                 };
             };
         };
@@ -1905,9 +2021,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["DiagnosisResponse"];
                 };
             };
             422: {
@@ -1994,9 +2108,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["ActionResponse"];
                 };
             };
             422: {
@@ -2025,9 +2137,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["ActionResponse"];
                 };
             };
             422: {

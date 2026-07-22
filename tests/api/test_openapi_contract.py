@@ -11,3 +11,12 @@ def test_exported_openapi_contains_management_contract() -> None:
     assert document["components"]["securitySchemes"]["HumanOAuth2"]["flows"]["password"][
         "tokenUrl"
     ] == "/api/v1/auth/token"
+
+
+def test_public_list_responses_have_concrete_item_schemas() -> None:
+    document = build_openapi_document()
+    response = document["paths"]["/api/v1/incidents"]["get"]["responses"]["200"]
+    schema = response["content"]["application/json"]["schema"]
+
+    assert schema["$ref"].endswith("/IncidentPage")
+    assert "IncidentResponse" in document["components"]["schemas"]

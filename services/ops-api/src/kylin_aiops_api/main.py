@@ -28,7 +28,14 @@ from .auth import AuthUser as User
 from .management import register_management_routes
 from .persistence import Database
 from .queue import ActionQueue, InMemoryActionQueue, RedisActionQueue
-from .schemas import ActionResult, AlertWebhook, Enrollment
+from .schemas import (
+    ActionResponse,
+    ActionResult,
+    AlertWebhook,
+    DiagnosisResponse,
+    Enrollment,
+    OverviewResponse,
+)
 from .sql_store import SqlControlPlaneStore
 from .status import RuntimeStatusProbe, SystemStatus
 from .store import InMemoryStore
@@ -293,7 +300,11 @@ def create_app(
     def healthz() -> dict[str, str]:
         return {"status": "ok"}
 
-    @app.get("/api/v1/overview")
+    @app.get(
+        "/api/v1/overview",
+        response_model=OverviewResponse,
+        response_model_exclude_none=True,
+    )
     def overview(
         data: Annotated[InMemoryStore, Depends(store)],
         _: Annotated[User, Depends(require("admin", "operator", "viewer"))],
@@ -359,7 +370,10 @@ def create_app(
     ) -> dict[str, Any]:
         return data.receive_alerts(payload)
 
-    @app.post("/api/v1/incidents/{incident_id}/diagnose")
+    @app.post(
+        "/api/v1/incidents/{incident_id}/diagnose",
+        response_model=DiagnosisResponse,
+    )
     def run_diagnosis(
         incident_id: str,
         request: Request,
@@ -439,7 +453,10 @@ def create_app(
             "evidence_refs": diagnosis["evidence_refs"],
         }
 
-    @app.post("/api/v1/incidents/{incident_id}/actions/preview")
+    @app.post(
+        "/api/v1/incidents/{incident_id}/actions/preview",
+        response_model=ActionResponse,
+    )
     def preview_action(
         incident_id: str,
         payload: ActionPreview,
@@ -476,7 +493,10 @@ def create_app(
         )
         return response
 
-    @app.post("/api/v1/action-requests/{action_id}/approve")
+    @app.post(
+        "/api/v1/action-requests/{action_id}/approve",
+        response_model=ActionResponse,
+    )
     def approve_action(
         action_id: str,
         request: Request,

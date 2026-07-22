@@ -221,9 +221,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response List Users Api V1 Admin Users Get"
+                  "$ref": "#/components/schemas/UserPage"
                 }
               }
             }
@@ -264,9 +262,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Create User Api V1 Admin Users Post"
+                  "$ref": "#/components/schemas/UserResponse"
                 }
               }
             }
@@ -336,9 +332,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Update User Api V1 Admin Users  User Id  Patch"
+                  "$ref": "#/components/schemas/UserResponse"
                 }
               }
             }
@@ -396,9 +390,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Archive User Api V1 Admin Users  User Id  Delete"
+                  "$ref": "#/components/schemas/UserResponse"
                 }
               }
             }
@@ -468,9 +460,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Reset Password Api V1 Admin Users  User Id  Reset Password Post"
+                  "$ref": "#/components/schemas/UserResponse"
                 }
               }
             }
@@ -530,9 +520,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Restore User Api V1 Admin Users  User Id  Restore Post"
+                  "$ref": "#/components/schemas/UserResponse"
                 }
               }
             }
@@ -584,6 +572,22 @@
             }
           },
           {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
             "name": "include_archived",
             "in": "query",
             "required": false,
@@ -600,9 +604,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Nodes Api V1 Resources Nodes Get"
+                  "$ref": "#/components/schemas/NodePage"
                 }
               }
             }
@@ -643,9 +645,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Create Node Api V1 Resources Nodes Post"
+                  "$ref": "#/components/schemas/NodeResponse"
                 }
               }
             }
@@ -715,9 +715,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Update Node Api V1 Resources Nodes  Node Id  Patch"
+                  "$ref": "#/components/schemas/NodeResponse"
                 }
               }
             }
@@ -775,9 +773,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Archive Node Api V1 Resources Nodes  Node Id  Delete"
+                  "$ref": "#/components/schemas/NodeResponse"
                 }
               }
             }
@@ -837,9 +833,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Restore Node Api V1 Resources Nodes  Node Id  Restore Post"
+                  "$ref": "#/components/schemas/NodeResponse"
                 }
               }
             }
@@ -891,6 +885,22 @@
             }
           },
           {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
             "name": "include_archived",
             "in": "query",
             "required": false,
@@ -907,9 +917,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Services Api V1 Resources Services Get"
+                  "$ref": "#/components/schemas/ServicePage"
                 }
               }
             }
@@ -950,9 +958,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Create Service Api V1 Resources Services Post"
+                  "$ref": "#/components/schemas/ServiceResponse"
                 }
               }
             }
@@ -1022,9 +1028,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Update Service Api V1 Resources Services  Service Id  Patch"
+                  "$ref": "#/components/schemas/ServiceResponse"
                 }
               }
             }
@@ -1082,9 +1086,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Archive Service Api V1 Resources Services  Service Id  Delete"
+                  "$ref": "#/components/schemas/ServiceResponse"
                 }
               }
             }
@@ -1144,9 +1146,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Restore Service Api V1 Resources Services  Service Id  Restore Post"
+                  "$ref": "#/components/schemas/ServiceResponse"
                 }
               }
             }
@@ -1214,9 +1214,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Dependencies Api V1 Resources Dependencies Get"
+                  "$ref": "#/components/schemas/DependencyPage"
                 }
               }
             }
@@ -1257,9 +1255,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Create Dependency Api V1 Resources Dependencies Post"
+                  "$ref": "#/components/schemas/DependencyResponse"
                 }
               }
             }
@@ -1319,9 +1315,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Archive Dependency Api V1 Resources Dependencies  Dependency Id  Delete"
+                  "$ref": "#/components/schemas/DependencyResponse"
                 }
               }
             }
@@ -1389,9 +1383,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Update Dependency Api V1 Resources Dependencies  Dependency Id  Patch"
+                  "$ref": "#/components/schemas/DependencyResponse"
                 }
               }
             }
@@ -1451,9 +1443,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Restore Dependency Api V1 Resources Dependencies  Dependency Id  Restore Post"
+                  "$ref": "#/components/schemas/DependencyResponse"
                 }
               }
             }
@@ -1553,9 +1543,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Incidents Api V1 Incidents Get"
+                  "$ref": "#/components/schemas/IncidentPage"
                 }
               }
             }
@@ -1596,9 +1584,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Create Incident Api V1 Incidents Post"
+                  "$ref": "#/components/schemas/IncidentResponse"
                 }
               }
             }
@@ -1642,9 +1628,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Incident Api V1 Incidents  Incident Id  Get"
+                  "$ref": "#/components/schemas/IncidentResponse"
                 }
               }
             }
@@ -1712,9 +1696,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Update Incident Api V1 Incidents  Incident Id  Patch"
+                  "$ref": "#/components/schemas/IncidentResponse"
                 }
               }
             }
@@ -1772,9 +1754,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Archive Incident Api V1 Incidents  Incident Id  Delete"
+                  "$ref": "#/components/schemas/IncidentResponse"
                 }
               }
             }
@@ -1834,9 +1814,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Restore Incident Api V1 Incidents  Incident Id  Restore Post"
+                  "$ref": "#/components/schemas/IncidentResponse"
                 }
               }
             }
@@ -1976,9 +1954,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Audit Logs Api V1 Audit Logs Get"
+                  "$ref": "#/components/schemas/AuditLogPage"
                 }
               }
             }
@@ -2028,9 +2004,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "type": "object",
-                  "title": "Response Overview Api V1 Overview Get"
+                  "$ref": "#/components/schemas/OverviewResponse"
                 }
               }
             }
@@ -2133,9 +2107,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Run Diagnosis Api V1 Incidents  Incident Id  Diagnose Post"
+                  "$ref": "#/components/schemas/DiagnosisResponse"
                 }
               }
             }
@@ -2266,9 +2238,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Preview Action Api V1 Incidents  Incident Id  Actions Preview Post"
+                  "$ref": "#/components/schemas/ActionResponse"
                 }
               }
             }
@@ -2312,9 +2282,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Approve Action Api V1 Action Requests  Action Id  Approve Post"
+                  "$ref": "#/components/schemas/ActionResponse"
                 }
               }
             }
@@ -2618,6 +2586,113 @@
         ],
         "title": "ActionPreview"
       },
+      "ActionResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "incident_id": {
+            "type": "string",
+            "title": "Incident Id"
+          },
+          "node_id": {
+            "type": "string",
+            "title": "Node Id"
+          },
+          "action_name": {
+            "type": "string",
+            "title": "Action Name"
+          },
+          "parameters": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Parameters"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "expires_at": {
+            "type": "string",
+            "title": "Expires At"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "approved_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved By"
+          },
+          "approved_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved At"
+          },
+          "risk": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Risk"
+          },
+          "prechecks": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prechecks"
+          },
+          "rollback": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rollback"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "incident_id",
+          "node_id",
+          "action_name",
+          "parameters",
+          "created_at",
+          "expires_at",
+          "status"
+        ],
+        "title": "ActionResponse"
+      },
       "ActionResult": {
         "properties": {
           "exit_code": {
@@ -2718,6 +2793,85 @@
           "alerts"
         ],
         "title": "AlertWebhook"
+      },
+      "AuditLogPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AuditLogResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Total"
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Page"
+          },
+          "page_size": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Page Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "AuditLogPage"
+      },
+      "AuditLogResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "actor_id": {
+            "type": "string",
+            "title": "Actor Id"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action"
+          },
+          "target": {
+            "type": "string",
+            "title": "Target"
+          },
+          "request_id": {
+            "type": "string",
+            "title": "Request Id"
+          },
+          "details": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Details"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "actor_id",
+          "action",
+          "target",
+          "request_id",
+          "details",
+          "created_at"
+        ],
+        "title": "AuditLogResponse"
       },
       "AuthUser": {
         "properties": {
@@ -2874,6 +3028,95 @@
         ],
         "title": "DependencyCreate"
       },
+      "DependencyPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DependencyResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Total"
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Page"
+          },
+          "page_size": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Page Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "DependencyPage"
+      },
+      "DependencyResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "source_service_id": {
+            "type": "string",
+            "title": "Source Service Id"
+          },
+          "target_service_id": {
+            "type": "string",
+            "title": "Target Service Id"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence"
+          },
+          "observed_at": {
+            "type": "string",
+            "title": "Observed At"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "archived_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archived At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "source_service_id",
+          "target_service_id",
+          "source",
+          "confidence",
+          "observed_at",
+          "version"
+        ],
+        "title": "DependencyResponse"
+      },
       "DependencyUpdate": {
         "properties": {
           "source_service_id": {
@@ -2902,6 +3145,71 @@
         "type": "object",
         "title": "DependencyUpdate"
       },
+      "DiagnosisResponse": {
+        "properties": {
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "root_cause": {
+            "type": "string",
+            "title": "Root Cause"
+          },
+          "severity": {
+            "type": "string",
+            "title": "Severity"
+          },
+          "propagation_path": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Propagation Path"
+          },
+          "evidence_refs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Evidence Refs"
+          },
+          "recommended_steps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Recommended Steps"
+          },
+          "action_candidates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Action Candidates"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "summary",
+          "root_cause",
+          "severity",
+          "propagation_path",
+          "evidence_refs",
+          "recommended_steps",
+          "action_candidates",
+          "confidence",
+          "source"
+        ],
+        "title": "DiagnosisResponse"
+      },
       "Enrollment": {
         "properties": {
           "node_id": {
@@ -2929,6 +3237,39 @@
           "kylin_version"
         ],
         "title": "Enrollment"
+      },
+      "EvidenceResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "node_id": {
+            "type": "string",
+            "title": "Node Id"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "observed_at": {
+            "type": "string",
+            "title": "Observed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "node_id",
+          "summary",
+          "observed_at"
+        ],
+        "title": "EvidenceResponse"
       },
       "HTTPValidationError": {
         "properties": {
@@ -3003,6 +3344,158 @@
           "severity"
         ],
         "title": "IncidentCreate"
+      },
+      "IncidentPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/IncidentResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Total"
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Page"
+          },
+          "page_size": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Page Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "IncidentPage"
+      },
+      "IncidentResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "fault_type": {
+            "type": "string",
+            "title": "Fault Type"
+          },
+          "severity": {
+            "type": "string",
+            "title": "Severity"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "started_at": {
+            "type": "string",
+            "title": "Started At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "root_node": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Root Node"
+          },
+          "assignee_user_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assignee User Id"
+          },
+          "handling_notes": {
+            "type": "string",
+            "title": "Handling Notes"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "archived_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archived At"
+          },
+          "propagation_path": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Propagation Path"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceResponse"
+            },
+            "type": "array",
+            "title": "Evidence"
+          },
+          "diagnosis": {
+            "$ref": "#/components/schemas/DiagnosisResponse"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "fault_type",
+          "severity",
+          "status",
+          "source",
+          "started_at",
+          "handling_notes",
+          "version",
+          "propagation_path",
+          "evidence",
+          "diagnosis"
+        ],
+        "title": "IncidentResponse"
       },
       "IncidentUpdate": {
         "properties": {
@@ -3144,6 +3637,142 @@
         ],
         "title": "NodeCreate"
       },
+      "NodePage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/NodeResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Total"
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Page"
+          },
+          "page_size": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Page Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "NodePage"
+      },
+      "NodeResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "hostname": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hostname"
+          },
+          "architecture": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Architecture"
+          },
+          "kylin_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kylin Version"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "archived_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archived At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "display_name",
+          "description",
+          "tags",
+          "enabled",
+          "status",
+          "version"
+        ],
+        "title": "NodeResponse"
+      },
       "NodeUpdate": {
         "properties": {
           "display_name": {
@@ -3200,6 +3829,129 @@
         },
         "type": "object",
         "title": "NodeUpdate"
+      },
+      "OverviewNodeResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "hostname": {
+            "type": "string",
+            "title": "Hostname"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "service": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service"
+          },
+          "architecture": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Architecture"
+          },
+          "kylin_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kylin Version"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "metrics": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Metrics"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "hostname",
+          "status"
+        ],
+        "title": "OverviewNodeResponse"
+      },
+      "OverviewResponse": {
+        "properties": {
+          "online_nodes": {
+            "type": "integer",
+            "title": "Online Nodes"
+          },
+          "total_nodes": {
+            "type": "integer",
+            "title": "Total Nodes"
+          },
+          "active_incidents": {
+            "type": "integer",
+            "title": "Active Incidents"
+          },
+          "today_alerts": {
+            "type": "integer",
+            "title": "Today Alerts"
+          },
+          "pending_actions": {
+            "type": "integer",
+            "title": "Pending Actions"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/OverviewNodeResponse"
+            },
+            "type": "array",
+            "title": "Nodes"
+          },
+          "topology": {
+            "items": {
+              "$ref": "#/components/schemas/TopologyEdgeResponse"
+            },
+            "type": "array",
+            "title": "Topology"
+          }
+        },
+        "type": "object",
+        "required": [
+          "online_nodes",
+          "total_nodes",
+          "active_incidents",
+          "today_alerts",
+          "pending_actions",
+          "nodes",
+          "topology"
+        ],
+        "title": "OverviewResponse"
       },
       "PasswordReset": {
         "properties": {
@@ -3259,6 +4011,100 @@
           "service_type"
         ],
         "title": "ServiceCreate"
+      },
+      "ServicePage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ServiceResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Total"
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Page"
+          },
+          "page_size": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Page Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "ServicePage"
+      },
+      "ServiceResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "node_id": {
+            "type": "string",
+            "title": "Node Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "service_type": {
+            "type": "string",
+            "title": "Service Type"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "archived_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archived At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "node_id",
+          "name",
+          "service_type",
+          "description",
+          "enabled",
+          "status",
+          "version"
+        ],
+        "title": "ServiceResponse"
       },
       "ServiceUpdate": {
         "properties": {
@@ -3376,6 +4222,29 @@
         ],
         "title": "TelemetryBatch"
       },
+      "TopologyEdgeResponse": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "target": {
+            "type": "string",
+            "title": "Target"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "target",
+          "confidence"
+        ],
+        "title": "TopologyEdgeResponse"
+      },
       "UserCreate": {
         "properties": {
           "username": {
@@ -3413,6 +4282,105 @@
           "role"
         ],
         "title": "UserCreate"
+      },
+      "UserPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/UserResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Total"
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Page"
+          },
+          "page_size": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Page Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "UserPage"
+      },
+      "UserResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "operator",
+              "viewer"
+            ],
+            "title": "Role"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          },
+          "archived_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archived At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "username",
+          "display_name",
+          "role",
+          "is_active",
+          "version",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "UserResponse"
       },
       "UserUpdate": {
         "properties": {

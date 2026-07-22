@@ -24,6 +24,7 @@ export default function OverviewPage() {
     mutationFn: async (incident: Incident) => {
       const actionName = incident.diagnosis.action_candidates[0]
       if (!actionName) throw new Error('当前诊断没有可执行的白名单动作')
+      if (!incident.root_node) throw new Error('当前事件没有可执行动作的目标节点')
       const preview = await api.previewAction(incident.id, { node_id: incident.root_node, action_name: actionName, parameters: actionParameters(actionName) })
       return api.approveAction(preview.id)
     },
@@ -43,7 +44,7 @@ export default function OverviewPage() {
         <Col xs={12} xl={6}><Card><Statistic title="今日告警" value={overview.today_alerts} styles={{ content: { color: '#dc2626' } }} /></Card></Col>
         <Col xs={12} xl={6}><Card><Statistic title="待审批动作" value={overview.pending_actions} styles={{ content: { color: '#2563eb' } }} /></Card></Col>
       </Row>
-      <ServiceTopology nodes={overview.nodes} topology={overview.topology} rootNode={selected?.root_node} propagationPath={selected?.diagnosis.propagation_path} />
+      <ServiceTopology nodes={overview.nodes} topology={overview.topology} rootNode={selected?.root_node ?? undefined} propagationPath={selected?.diagnosis.propagation_path} />
       <section className="incident-table-panel"><div className="section-heading"><div><span>实时事件</span><h2>事件列表</h2></div></div><IncidentTable incidents={incidents} selectedId={selected?.id} onSelect={(item) => setSelectedIncidentId(item.id)} /></section>
     </main>
     {selected ? <IncidentInspector incident={selected} onApprove={() => approve.mutate(selected)} /> : <aside className="incident-inspector">暂无事件</aside>}

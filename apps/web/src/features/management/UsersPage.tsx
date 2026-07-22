@@ -16,8 +16,12 @@ export default function UsersPage() {
   const refresh = () => void queryClient.invalidateQueries({ queryKey: ['managed-users'] })
   const save = useMutation({
     mutationFn: (values: Record<string, unknown>) => editing === 'new'
-      ? api.createUser(values)
-      : api.updateUser(editing!.id, editing!.version, values),
+      ? api.createUser(values as Parameters<typeof api.createUser>[0])
+      : api.updateUser(
+          editing!.id,
+          editing!.version,
+          values as Parameters<typeof api.updateUser>[2],
+        ),
     onSuccess: () => {
       setEditing(null)
       form.resetFields()

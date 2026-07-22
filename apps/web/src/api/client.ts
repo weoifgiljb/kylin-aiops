@@ -1,18 +1,20 @@
+import type { components } from '@kylin-aiops/api-client'
+
 import type {
   ApiProblemBody,
-  AuditLog,
   CurrentUser,
   EvaluationRun,
   EvaluationRunList,
   Incident,
   ManagedNode,
   Overview,
-  Paged,
   Service,
   ServiceDependency,
   SystemStatus,
   UserAccount,
 } from './types'
+
+type Schemas = components['schemas']
 
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? ''
 let accessToken: string | null = null
@@ -110,12 +112,12 @@ export const api = {
   me: () => request<CurrentUser>('/api/v1/auth/me', undefined, false),
   overview: () => request<Overview>('/api/v1/overview'),
   systemStatus: () => request<SystemStatus>('/api/v1/system/status'),
-  incidents: () => request<Paged<Incident>>('/api/v1/incidents'),
+  incidents: () => request<Schemas['IncidentPage']>('/api/v1/incidents'),
   incident: (id: string) => request<Incident>(`/api/v1/incidents/${id}`),
-  createIncident: (body: object) => request<Incident>('/api/v1/incidents', {
+  createIncident: (body: Schemas['IncidentCreate']) => request<Incident>('/api/v1/incidents', {
     method: 'POST', body: JSON.stringify(body),
   }),
-  updateIncident: (id: string, version: number, body: object) =>
+  updateIncident: (id: string, version: number, body: Schemas['IncidentUpdate']) =>
     request<Incident>(`/api/v1/incidents/${id}`, {
       method: 'PATCH', headers: versionHeader(version), body: JSON.stringify(body),
     }),
@@ -131,7 +133,7 @@ export const api = {
       `/api/v1/chat/sessions/${sessionId}/messages`,
       { method: 'POST', body: JSON.stringify({ message, incident_id: incidentId }) },
     ),
-  previewAction: (incidentId: string, body: object) =>
+  previewAction: (incidentId: string, body: Schemas['ActionPreview']) =>
     request<{ id: string; status: string }>(`/api/v1/incidents/${incidentId}/actions/preview`, {
       method: 'POST', body: JSON.stringify(body),
     }),
@@ -139,11 +141,11 @@ export const api = {
     request<{ id: string; status: string }>(`/api/v1/action-requests/${actionId}/approve`, { method: 'POST' }),
   evaluations: () => request<EvaluationRunList>('/api/v1/evaluations/runs'),
   evaluation: (id: string) => request<EvaluationRun>(`/api/v1/evaluations/runs/${id}`),
-  users: (includeArchived = false) => request<Paged<UserAccount>>(`/api/v1/admin/users?include_archived=${includeArchived}`),
-  createUser: (body: object) => request<UserAccount>('/api/v1/admin/users', {
+  users: (includeArchived = false) => request<Schemas['UserPage']>(`/api/v1/admin/users?include_archived=${includeArchived}`),
+  createUser: (body: Schemas['UserCreate']) => request<UserAccount>('/api/v1/admin/users', {
     method: 'POST', body: JSON.stringify(body),
   }),
-  updateUser: (id: string, version: number, body: object) => request<UserAccount>(`/api/v1/admin/users/${id}`, {
+  updateUser: (id: string, version: number, body: Schemas['UserUpdate']) => request<UserAccount>(`/api/v1/admin/users/${id}`, {
     method: 'PATCH', headers: versionHeader(version), body: JSON.stringify(body),
   }),
   archiveUser: (id: string, version: number) => request<UserAccount>(`/api/v1/admin/users/${id}`, {
@@ -155,11 +157,11 @@ export const api = {
   resetUserPassword: (id: string, version: number, password: string) => request<UserAccount>(`/api/v1/admin/users/${id}/reset-password`, {
     method: 'POST', headers: versionHeader(version), body: JSON.stringify({ password }),
   }),
-  nodes: (includeArchived = false) => request<Paged<ManagedNode>>(`/api/v1/resources/nodes?include_archived=${includeArchived}`),
-  createNode: (body: object) => request<ManagedNode>('/api/v1/resources/nodes', {
+  nodes: (includeArchived = false) => request<Schemas['NodePage']>(`/api/v1/resources/nodes?include_archived=${includeArchived}`),
+  createNode: (body: Schemas['NodeCreate']) => request<ManagedNode>('/api/v1/resources/nodes', {
     method: 'POST', body: JSON.stringify(body),
   }),
-  updateNode: (id: string, version: number, body: object) => request<ManagedNode>(`/api/v1/resources/nodes/${id}`, {
+  updateNode: (id: string, version: number, body: Schemas['NodeUpdate']) => request<ManagedNode>(`/api/v1/resources/nodes/${id}`, {
     method: 'PATCH', headers: versionHeader(version), body: JSON.stringify(body),
   }),
   archiveNode: (id: string, version: number) => request<ManagedNode>(`/api/v1/resources/nodes/${id}`, {
@@ -168,11 +170,11 @@ export const api = {
   restoreNode: (id: string, version: number) => request<ManagedNode>(`/api/v1/resources/nodes/${id}/restore`, {
     method: 'POST', headers: versionHeader(version),
   }),
-  services: (includeArchived = false) => request<Paged<Service>>(`/api/v1/resources/services?include_archived=${includeArchived}`),
-  createService: (body: object) => request<Service>('/api/v1/resources/services', {
+  services: (includeArchived = false) => request<Schemas['ServicePage']>(`/api/v1/resources/services?include_archived=${includeArchived}`),
+  createService: (body: Schemas['ServiceCreate']) => request<Service>('/api/v1/resources/services', {
     method: 'POST', body: JSON.stringify(body),
   }),
-  updateService: (id: string, version: number, body: object) => request<Service>(`/api/v1/resources/services/${id}`, {
+  updateService: (id: string, version: number, body: Schemas['ServiceUpdate']) => request<Service>(`/api/v1/resources/services/${id}`, {
     method: 'PATCH', headers: versionHeader(version), body: JSON.stringify(body),
   }),
   archiveService: (id: string, version: number) => request<Service>(`/api/v1/resources/services/${id}`, {
@@ -181,11 +183,11 @@ export const api = {
   restoreService: (id: string, version: number) => request<Service>(`/api/v1/resources/services/${id}/restore`, {
     method: 'POST', headers: versionHeader(version),
   }),
-  dependencies: (includeArchived = false) => request<Paged<ServiceDependency>>(`/api/v1/resources/dependencies?include_archived=${includeArchived}`),
-  createDependency: (body: object) => request<ServiceDependency>('/api/v1/resources/dependencies', {
+  dependencies: (includeArchived = false) => request<Schemas['DependencyPage']>(`/api/v1/resources/dependencies?include_archived=${includeArchived}`),
+  createDependency: (body: Schemas['DependencyCreate']) => request<ServiceDependency>('/api/v1/resources/dependencies', {
     method: 'POST', body: JSON.stringify(body),
   }),
-  updateDependency: (id: number, version: number, body: object) => request<ServiceDependency>(`/api/v1/resources/dependencies/${id}`, {
+  updateDependency: (id: number, version: number, body: Schemas['DependencyUpdate']) => request<ServiceDependency>(`/api/v1/resources/dependencies/${id}`, {
     method: 'PATCH', headers: versionHeader(version), body: JSON.stringify(body),
   }),
   archiveDependency: (id: number, version: number) => request<ServiceDependency>(`/api/v1/resources/dependencies/${id}`, {
@@ -196,7 +198,7 @@ export const api = {
   }),
   auditLogs: (filters?: Record<string, string>) => {
     const query = new URLSearchParams(filters).toString()
-    return request<Paged<AuditLog>>(`/api/v1/audit-logs${query ? `?${query}` : ''}`)
+    return request<Schemas['AuditLogPage']>(`/api/v1/audit-logs${query ? `?${query}` : ''}`)
   },
 }
 

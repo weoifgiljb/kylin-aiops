@@ -28,21 +28,36 @@ export default function ResourcesPage() {
       if (editor.kind === 'node') {
         if (editor.record) {
           const node = editor.record as ManagedNode
-          return api.updateNode(node.id, node.version, values)
+          return api.updateNode(
+            node.id,
+            node.version,
+            values as Parameters<typeof api.updateNode>[2],
+          )
         }
-        return api.createNode({ ...values, tags: String(values.tags ?? '').split(',').filter(Boolean) })
+        return api.createNode({
+          ...values,
+          tags: String(values.tags ?? '').split(',').filter(Boolean),
+        } as Parameters<typeof api.createNode>[0])
       }
       if (editor.kind === 'service') {
         if (editor.record) {
           const service = editor.record as Service
-          return api.updateService(service.id, service.version, values)
+          return api.updateService(
+            service.id,
+            service.version,
+            values as Parameters<typeof api.updateService>[2],
+          )
         }
-        return api.createService(values)
+        return api.createService(values as Parameters<typeof api.createService>[0])
       }
       if (editor.record && 'source' in editor.record) {
-        return api.updateDependency(editor.record.id, editor.record.version, values)
+        return api.updateDependency(
+          editor.record.id,
+          editor.record.version,
+          values as Parameters<typeof api.updateDependency>[2],
+        )
       }
-      return api.createDependency(values)
+      return api.createDependency(values as Parameters<typeof api.createDependency>[0])
     },
     onSuccess: () => {
       setEditor(null)
