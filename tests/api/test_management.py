@@ -54,7 +54,8 @@ def test_database_mode_shares_one_session_factory(tmp_path: Path) -> None:
     client = management_client(tmp_path)
 
     assert client.app.state.auth_manager.sessions is client.app.state.database.sessions
-    assert client.app.state.store.engine is client.app.state.database.engine
+    assert client.app.state.store.sessions is client.app.state.database.sessions
+    assert not hasattr(client.app.state.store, "engine")
 
 
 def test_human_jwt_skips_agent_credential_lookup(tmp_path: Path, monkeypatch) -> None:

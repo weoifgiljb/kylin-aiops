@@ -176,7 +176,7 @@ def create_app(
     database = Database(configured_database_url) if configured_database_url else None
     app.state.database = database
     app.state.store = (
-        SqlControlPlaneStore(database.sessions, queue, database.engine)
+        SqlControlPlaneStore(database.sessions, queue)
         if database is not None
         else InMemoryStore(seed_demo=seed_demo, action_queue=queue)
     )
@@ -248,6 +248,12 @@ def create_app(
     ) -> User:
         if not token:
             raise ApiProblem(401, "AUTH_REQUIRED", "Bearer token is required")
+        bootstrap_token = os.getenv("AGENT_BOOTSTRAP_TOKEN")
+        if bootstrap_token and secrets.compare_digest(token, bootstrap_token):
+            return User(id="agent:bootstrap", role="agent")
+        manager: AuthManager | None = request.app.state.auth_manager
+        if manager is not None:
+            return manager.authenticate_bearer(token)
         enrolled_node = next(
             (
                 node_id
@@ -258,12 +264,6 @@ def create_app(
         )
         if enrolled_node:
             return User(id=f"agent:{enrolled_node}", role="agent")
-        bootstrap_token = os.getenv("AGENT_BOOTSTRAP_TOKEN")
-        if bootstrap_token and secrets.compare_digest(token, bootstrap_token):
-            return User(id="agent:bootstrap", role="agent")
-        manager: AuthManager | None = request.app.state.auth_manager
-        if manager is not None:
-            return manager.authenticate_bearer(token)
         user = TOKENS.get(token)
         if user is None:
             raise ApiProblem(401, "INVALID_TOKEN", "Bearer token is invalid")
@@ -465,9 +465,7 @@ def create_app(
             action_name=payload.action_name,
             parameters=payload.parameters,
         )
-        data.actions[action.id] = action
-        data.audit(user.id, "action.previewed", action.id, {"incident_id": incident_id})
-        data.persist_all()
+        data.create_action(action, user.id)
         response = data.serialize_action(action)
         response.update(
             {
@@ -485,7 +483,7 @@ def create_app(
         data: Annotated[InMemoryStore, Depends(store)],
         user: Annotated[User, Depends(require("admin", "operator"))],
     ) -> dict[str, Any]:
-        action = data.actions.get(action_id)
+        action = data.get_action(action_id)
         if action is None:
             raise ApiProblem(404, "ACTION_NOT_FOUND", "Action request does not exist")
         try:
@@ -494,9 +492,8 @@ def create_app(
             envelope = request.app.state.signer.sign(action, now=now)
         except ApprovalError as exc:
             raise ApiProblem(409, "ACTION_APPROVAL_REJECTED", str(exc)) from exc
+        data.save_approved_action(action, user.id)
         data.action_queue.enqueue(envelope)
-        data.audit(user.id, "action.approved", action.id, {"node_id": action.node_id})
-        data.persist_all()
         return data.serialize_action(action)
 
     @app.post("/agent/v1/enroll")
@@ -507,18 +504,12 @@ def create_app(
         _: Annotated[User, Depends(require("agent", "admin"))],
     ) -> dict[str, Any]:
         manager: AuthManager | None = request.app.state.auth_manager
-        token = secrets.token_urlsafe(48)
-        data.agent_tokens[payload.node_id] = token
-        data.nodes[payload.node_id] = {
-            "id": payload.node_id,
-            "hostname": payload.hostname,
-            "architecture": payload.architecture,
-            "kylin_version": payload.kylin_version,
-            "status": "online",
-        }
-        data.persist_all()
+        data.enroll_node(payload)
         if manager is not None:
             token = manager.issue_agent_credential(payload.node_id)
+        else:
+            token = secrets.token_urlsafe(48)
+            data.agent_tokens[payload.node_id] = token
         return {"node_id": payload.node_id, "enrollment_token": token, "mtls_required": True}
 
     @app.get("/agent/v1/actions/next", response_model=None)
@@ -545,16 +536,14 @@ def create_app(
     ) -> dict[str, Any]:
         if user.id.startswith("agent:") and user.id != f"agent:{payload.node_id}":
             raise ApiProblem(403, "AGENT_TARGET_MISMATCH", "Agent token is bound to another node")
-        node = data.nodes.get(payload.node_id)
-        if node is None:
-            raise ApiProblem(404, "NODE_NOT_FOUND", "Node must enroll before sending telemetry")
-        observed_at = payload.observed_at.isoformat()
-        node.update({"status": "online", "last_seen_at": observed_at})
-        data.telemetry[payload.node_id] = {
-            "observed_at": observed_at,
-            "metrics": payload.metrics,
-        }
-        data.persist_all()
+        try:
+            data.record_telemetry(payload.node_id, payload.observed_at, payload.metrics)
+        except KeyError:
+            raise ApiProblem(
+                404,
+                "NODE_NOT_FOUND",
+                "Node must enroll before sending telemetry",
+            ) from None
         return {"accepted": True, "node_id": payload.node_id}
 
     @app.post("/agent/v1/actions/{action_id}/result")
@@ -564,14 +553,12 @@ def create_app(
         data: Annotated[InMemoryStore, Depends(store)],
         user: Annotated[User, Depends(require("agent"))],
     ) -> dict[str, Any]:
-        action = data.actions.get(action_id)
+        action = data.get_action(action_id)
         if action is None:
             raise ApiProblem(404, "ACTION_NOT_FOUND", "Action request does not exist")
         if user.id.startswith("agent:") and user.id != f"agent:{action.node_id}":
             raise ApiProblem(403, "AGENT_TARGET_MISMATCH", "Agent token is bound to another node")
-        data.executions[action_id] = payload.model_dump()
-        action.status = action.status.EXECUTED
-        data.persist_all()
+        data.record_action_result(action_id, payload)
         return {"action_id": action_id, "status": "recorded"}
 
     @app.get("/api/v1/evaluations/runs/{run_id}")

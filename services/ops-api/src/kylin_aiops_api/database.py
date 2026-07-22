@@ -113,6 +113,16 @@ class AgentCredentialRow(Base):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class TelemetrySnapshotRow(Base):
+    __tablename__ = "telemetry_snapshots"
+    node_id: Mapped[str] = mapped_column(
+        ForeignKey("nodes.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    metrics: Mapped[dict[str, float]] = mapped_column(JSON)
+
+
 class EvidenceRow(Base):
     __tablename__ = "evidence"
     id: Mapped[str] = mapped_column(String(64), primary_key=True)

@@ -1,4 +1,4 @@
-"""Development state store with optional SQL persistence for the MVP control plane."""
+"""提供无数据库测试与演示使用的进程内状态存储。"""
 
 from __future__ import annotations
 
@@ -7,34 +7,18 @@ from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import create_engine, select
-from sqlalchemy.engine import Engine
-from sqlalchemy.orm import Session
-
 from .actions import ActionRequest, ActionStatus
-from .database import (
-    ActionExecutionRow,
-    ActionRequestRow,
-    AuditLogRow,
-    DiagnosisRow,
-    EvidenceRow,
-    IncidentRow,
-    NodeRow,
-    ServiceRow,
-)
 from .queue import ActionQueue, InMemoryActionQueue
-from .schemas import AlertWebhook
+from .schemas import ActionResult, AlertWebhook, Enrollment
 
 
 class InMemoryStore:
-    """Deterministic development store; production wiring uses PostgreSQL/Redis."""
+    """确定性的开发存储；生产环境使用独立的 SQL 状态服务。"""
 
     def __init__(
         self,
         seed_demo: bool = False,
         action_queue: ActionQueue | None = None,
-        database_url: str | None = None,
-        engine: Engine | None = None,
     ) -> None:
         self.nodes: dict[str, dict[str, Any]] = {}
         self.incidents: dict[str, dict[str, Any]] = {}
@@ -45,92 +29,8 @@ class InMemoryStore:
         self.telemetry: dict[str, dict[str, Any]] = {}
         self.alert_incidents: dict[str, str] = {}
         self.audit_logs: list[dict[str, Any]] = []
-        self.engine = engine or (create_engine(database_url) if database_url else None)
-        if self.engine:
-            self._load_database()
         if seed_demo and not self.nodes:
             self._seed_demo()
-
-    def _load_database(self) -> None:
-        assert self.engine is not None
-        with Session(self.engine) as session:
-            services = {
-                item.node_id: item.service_type for item in session.scalars(select(ServiceRow))
-            }
-            for row in session.scalars(select(NodeRow)):
-                self.nodes[row.id] = {
-                    "id": row.id,
-                    "hostname": row.hostname,
-                    "architecture": row.architecture,
-                    "kylin_version": row.kylin_version,
-                    "status": row.status,
-                    "last_seen_at": row.last_seen_at.isoformat() if row.last_seen_at else None,
-                    "service": services.get(row.id),
-                }
-            evidence_by_incident: dict[str, list[dict[str, Any]]] = {}
-            for row in session.scalars(select(EvidenceRow)):
-                evidence_by_incident.setdefault(row.incident_id, []).append(
-                    {
-                        "id": row.id,
-                        "kind": row.kind,
-                        "node_id": row.node_id,
-                        "summary": row.summary,
-                        "observed_at": row.observed_at.isoformat(),
-                    }
-                )
-            diagnoses = {row.incident_id: row for row in session.scalars(select(DiagnosisRow))}
-            for row in session.scalars(select(IncidentRow)):
-                diagnosis = diagnoses.get(row.id)
-                self.incidents[row.id] = {
-                    "id": row.id,
-                    "title": row.title,
-                    "severity": row.severity,
-                    "status": row.status,
-                    "started_at": row.started_at.isoformat(),
-                    "root_node": row.root_node_id,
-                    "propagation_path": (
-                        diagnosis.propagation_path if diagnosis else [row.root_node_id]
-                    ),
-                    "evidence": evidence_by_incident.get(row.id, []),
-                    "diagnosis": {
-                        "summary": diagnosis.summary if diagnosis else "Awaiting diagnosis",
-                        "root_cause": diagnosis.root_cause if diagnosis else row.root_node_id,
-                        "severity": diagnosis.severity if diagnosis else row.severity,
-                        "propagation_path": (
-                            diagnosis.propagation_path if diagnosis else [row.root_node_id]
-                        ),
-                        "evidence_refs": diagnosis.evidence_refs if diagnosis else [],
-                        "recommended_steps": diagnosis.recommended_steps if diagnosis else [],
-                        "action_candidates": diagnosis.action_candidates if diagnosis else [],
-                        "confidence": diagnosis.confidence if diagnosis else 0.0,
-                        "source": diagnosis.source if diagnosis else "pending",
-                    },
-                }
-            for row in session.scalars(select(ActionRequestRow)):
-                self.actions[row.id] = ActionRequest(
-                    id=row.id,
-                    incident_id=row.incident_id,
-                    node_id=row.node_id,
-                    action_name=row.action_name,
-                    parameters=row.parameters,
-                    created_at=row.created_at,
-                    expires_at=row.expires_at,
-                    status=ActionStatus(row.status),
-                    approved_by=row.approved_by,
-                    approved_at=row.approved_at,
-                )
-            for row in session.scalars(select(AuditLogRow).order_by(AuditLogRow.created_at)):
-                self.audit_logs.append(
-                    {
-                        "id": row.id,
-                        "actor_id": row.actor_id,
-                        "action": row.action,
-                        "target": row.target,
-                        "request_id": row.request_id,
-                        "details": row.details,
-                        "created_at": row.created_at.isoformat(),
-                    }
-                )
 
     def _seed_demo(self) -> None:
         now = datetime.now(UTC)
@@ -277,124 +177,61 @@ class InMemoryStore:
             incident = self.incidents[incident_id]
             incident["status"] = "resolved" if alert.status == "resolved" else "open"
             incident_ids.append(incident_id)
-        self.persist_all()
         return {
             "accepted": len(payload.alerts),
             "created": created,
             "incident_ids": incident_ids,
         }
 
-    def persist_all(self) -> None:
-        """Persist the current MVP state when a database URL was configured."""
+    def record_telemetry(
+        self,
+        node_id: str,
+        observed_at: datetime,
+        metrics: dict[str, float],
+    ) -> None:
+        """更新内存节点和最新遥测，供无数据库模式复用。"""
 
-        if not self.engine:
-            return
-        with Session(self.engine) as session:
-            for node in self.nodes.values():
-                last_seen = node.get("last_seen_at")
-                session.merge(
-                    NodeRow(
-                        id=node["id"],
-                        hostname=node["hostname"],
-                        architecture=node.get("architecture"),
-                        kylin_version=node.get("kylin_version"),
-                        status=node["status"],
-                        last_seen_at=datetime.fromisoformat(last_seen) if last_seen else None,
-                    )
-                )
-                if node.get("service"):
-                    session.merge(
-                        ServiceRow(
-                            id=f"svc-{node['id']}",
-                            node_id=node["id"],
-                            name=str(node["service"]),
-                            service_type=str(node["service"]),
-                            status=node["status"],
-                        )
-                    )
-            for incident in self.incidents.values():
-                session.merge(
-                    IncidentRow(
-                        id=incident["id"],
-                        title=incident["title"],
-                        fault_type=incident.get("fault_type", "unknown"),
-                        severity=incident["severity"],
-                        status=incident["status"],
-                        started_at=datetime.fromisoformat(incident["started_at"]),
-                        ended_at=None,
-                        root_node_id=incident.get("root_node"),
-                    )
-                )
-                for evidence in incident.get("evidence", []):
-                    session.merge(
-                        EvidenceRow(
-                            id=evidence["id"],
-                            incident_id=incident["id"],
-                            node_id=evidence["node_id"],
-                            kind=evidence["kind"],
-                            summary=evidence["summary"],
-                            source_uri=evidence.get("source_uri"),
-                            observed_at=datetime.fromisoformat(evidence["observed_at"]),
-                        )
-                    )
-                diagnosis = incident.get("diagnosis")
-                if diagnosis:
-                    session.merge(
-                        DiagnosisRow(
-                            id=f"diag-{incident['id']}",
-                            incident_id=incident["id"],
-                            summary=diagnosis["summary"],
-                            root_cause=diagnosis["root_cause"],
-                            severity=diagnosis["severity"],
-                            confidence=diagnosis["confidence"],
-                            propagation_path=diagnosis["propagation_path"],
-                            evidence_refs=diagnosis["evidence_refs"],
-                            recommended_steps=diagnosis["recommended_steps"],
-                            action_candidates=diagnosis["action_candidates"],
-                            source=diagnosis["source"],
-                            created_at=datetime.now(UTC),
-                        )
-                    )
-            for action in self.actions.values():
-                session.merge(
-                    ActionRequestRow(
-                        id=action.id,
-                        incident_id=action.incident_id,
-                        node_id=action.node_id,
-                        action_name=action.action_name,
-                        parameters=action.parameters,
-                        status=action.status.value,
-                        approved_by=action.approved_by,
-                        approved_at=action.approved_at,
-                        created_at=action.created_at,
-                        expires_at=action.expires_at,
-                    )
-                )
-            for action_id, execution in self.executions.items():
-                session.merge(
-                    ActionExecutionRow(
-                        id=f"exec-{action_id}",
-                        action_request_id=action_id,
-                        exit_code=execution["exit_code"],
-                        stdout=execution["stdout"],
-                        stderr=execution["stderr"],
-                        health_check_passed=execution["health_check"] == "passed",
-                        executed_at=datetime.now(UTC),
-                    )
-                )
-            for audit in self.audit_logs:
-                session.merge(
-                    AuditLogRow(
-                        id=audit["id"],
-                        actor_id=audit["actor_id"],
-                        action=audit["action"],
-                        target=audit["target"],
-                        request_id=audit["request_id"],
-                        details=audit["details"],
-                        created_at=datetime.fromisoformat(audit["created_at"]),
-                    )
-                )
-            session.commit()
+        node = self.nodes.get(node_id)
+        if node is None:
+            raise KeyError(node_id)
+        observed_text = observed_at.isoformat()
+        node.update({"status": "online", "last_seen_at": observed_text})
+        self.telemetry[node_id] = {"observed_at": observed_text, "metrics": metrics}
+
+    def enroll_node(self, payload: Enrollment) -> None:
+        """登记内存节点，供无数据库测试和演示复用。"""
+
+        self.nodes[payload.node_id] = {
+            "id": payload.node_id,
+            "hostname": payload.hostname,
+            "architecture": payload.architecture,
+            "kylin_version": payload.kylin_version,
+            "status": "online",
+        }
+
+    def create_action(self, action: ActionRequest, actor_id: str) -> None:
+        """保存内存动作并记录预览审计。"""
+
+        self.actions[action.id] = action
+        self.audit(actor_id, "action.previewed", action.id, {"incident_id": action.incident_id})
+
+    def get_action(self, action_id: str) -> ActionRequest | None:
+        return self.actions.get(action_id)
+
+    def save_approved_action(self, action: ActionRequest, actor_id: str) -> None:
+        """保存已审批内存动作及审计记录。"""
+
+        self.actions[action.id] = action
+        self.audit(actor_id, "action.approved", action.id, {"node_id": action.node_id})
+
+    def record_action_result(self, action_id: str, result: ActionResult) -> None:
+        """记录内存执行结果并更新动作状态。"""
+
+        action = self.actions.get(action_id)
+        if action is None:
+            raise KeyError(action_id)
+        self.executions[action_id] = result.model_dump()
+        action.status = ActionStatus.EXECUTED
 
     def audit(
         self,
@@ -403,7 +240,7 @@ class InMemoryStore:
         target: str,
         details: dict[str, Any] | None = None,
     ) -> None:
-        """Append an immutable-in-practice audit event for a security-sensitive operation."""
+        """为安全敏感操作追加一条只增不改的进程内审计记录。"""
 
         self.audit_logs.append(
             {
@@ -416,6 +253,17 @@ class InMemoryStore:
                 "created_at": datetime.now(UTC).isoformat(),
             }
         )
+
+    def append_audit(
+        self,
+        actor_id: str,
+        action: str,
+        target: str,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        """提供与 SQL 状态服务一致的审计写入接口。"""
+
+        self.audit(actor_id, action, target, details)
 
     @staticmethod
     def serialize_action(action: ActionRequest) -> dict[str, Any]:

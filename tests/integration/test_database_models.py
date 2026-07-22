@@ -21,6 +21,7 @@ def test_database_metadata_contains_all_planned_core_types() -> None:
         "users",
         "auth_sessions",
         "agent_credentials",
+        "telemetry_snapshots",
     }
 
 
