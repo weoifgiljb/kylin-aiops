@@ -13,7 +13,7 @@ flowchart LR
   L --> D[Diagnosis Worker]
   T --> D
   B --> R[(PostgreSQL)]
-  B --> Q[(Redis Streams)]
+  B --> Q[(按节点隔离的 Redis Lists)]
   Q --> D
   D --> M[MindSpore 推理]
   D --> I[MindIE 说明生成]
@@ -35,8 +35,10 @@ flowchart LR
 
 ## 数据模型
 
-SQLAlchemy 定义了节点、服务、依赖边、事件、证据、诊断、动作申请、执行记录、评测批次、试验结果和审计日志十一张表。OpenAPI 文件由应用代码生成，禁止前后端各自维护一套契约。
+SQLAlchemy 定义了节点、服务、依赖边、事件、证据、诊断、动作申请、执行记录、评测批次、试验结果、审计日志、用户、认证会话、Agent 凭据和遥测快照。OpenAPI 文件由应用代码生成，前端实体与请求类型从该文件生成，禁止前后端各自维护一套契约。
 
 ## 当前实现边界
 
-本仓库本地默认使用单进程开发存储；设置 `DATABASE_URL` 后会加载并同步 PostgreSQL 核心实体，设置 `REDIS_URL` 后批准动作进入 Redis Stream。该实现满足 MVP 单中心持久化与重启恢复，不包含生产级迁移编排、高可用、并发冲突控制或跨地域复制。
+未设置 `DATABASE_URL` 时，`InMemoryStore` 仅用于单元测试和演示。设置 `DATABASE_URL` 后，PostgreSQL 是唯一业务状态源，所有查询和增量写入直接针对数据库行，不加载或全量回写进程内快照。遥测表按节点保存最新快照，只更新观测字段，不覆盖名称、描述、标签等人工配置。
+
+设置 `REDIS_URL` 后，每个节点使用独立的 Redis List，Agent 通过原子 `LPOP` 只取走自身动作，避免扫描其他节点队列。React 控制台通过 React Query 每 15 秒轮询概览和事件；管理列表按需请求并使用数据库分页。本实现保留单中心、至多一次动作交付语义，不包含跨地域复制或 Agent 崩溃后的动作重投协议。

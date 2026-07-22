@@ -32,6 +32,8 @@ pnpm --filter @kylin-aiops/web dev
 
 `COOKIE_SECURE=false` 仅适合本机 HTTP 开发；校内多人环境强制使用 HTTPS 和安全 Cookie。没有 `DATABASE_URL` 时保留的内存模式只用于单元测试和旧实验链，不得用于多人测试。
 
+配置 `DATABASE_URL` 后，PostgreSQL 是节点、事件、遥测、动作和审计的唯一业务状态源；API 不维护数据库的进程内副本。遥测只覆盖每个节点的最新快照，已审批动作通过按节点隔离的 Redis List 交付。控制台以 15 秒轮询刷新概览和事件，不建立常驻事件流连接。
+
 ## 校内部署
 
 1. 复制 `.env.example` 为 `.env`，替换所有密码、密钥和证书绝对路径。

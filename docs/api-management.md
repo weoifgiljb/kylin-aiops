@@ -45,12 +45,23 @@ curl --silent --show-error --fail -X POST \
   "$AIOPS_BASE_URL/api/v1/resources/nodes"
 ```
 
-列表统一使用 `items / total / page / page_size`，每页最大 100：
+列表统一使用 `page`、`page_size` 请求参数，并返回 `items / total / page / page_size`，每页最大 100。节点和服务额外支持 `q` 按标识或名称搜索；管理列表支持 `include_archived`：
 
 ```bash
 curl --silent --show-error --fail \
   -H "Authorization: Bearer $AIOPS_ACCESS_TOKEN" \
-  "$AIOPS_BASE_URL/api/v1/resources/nodes?page=1&page_size=20&include_archived=true"
+  "$AIOPS_BASE_URL/api/v1/resources/nodes?page=1&page_size=20&q=test&include_archived=true"
+```
+
+分页响应示例：
+
+```json
+{
+  "items": [{ "id": "test-node-01", "display_name": "测试节点一", "version": 1 }],
+  "total": 25,
+  "page": 1,
+  "page_size": 20
+}
 ```
 
 更新、归档和恢复必须携带当前 `version`。下面假设当前版本是 1：
@@ -89,6 +100,8 @@ curl --silent --show-error --fail -X PATCH \
 ```
 
 人工事件允许 operator/admin 修改业务字段；自动告警事件的原始标题、故障类型、根节点、时间和证据不可修改。事件只有在 `resolved` 后才能归档，自动事件仅 admin 可归档。
+
+事件列表同样必须显式分页，例如 `GET /api/v1/incidents?page=2&page_size=20`。动作接口保持为 `POST /api/v1/incidents/{incident_id}/actions/preview` 和 `POST /api/v1/action-requests/{action_id}/approve`；审批后由目标 Agent 轮询自身队列。
 
 ## 用户与审计
 

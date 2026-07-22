@@ -86,7 +86,7 @@ class InMemoryStore:
         }
 
     def overview(self) -> dict[str, Any]:
-        """Build a current overview from enrolled nodes, telemetry, incidents, and actions."""
+        """根据已登记节点、遥测、事件和动作构造当前概览。"""
 
         now = datetime.now(UTC)
         cutoff = now - timedelta(seconds=30)

@@ -319,7 +319,7 @@ def create_app(
         request: Request,
         _: Annotated[User, Depends(require("admin", "operator", "viewer"))],
     ) -> SystemStatus:
-        """Return observed model runtime state for the console status surfaces."""
+        """返回控制台展示所需的模型运行时观测状态。"""
 
         return request.app.state.status_probe.snapshot()
 
@@ -605,7 +605,7 @@ def create_app(
     def evaluation_runs(
         _: Annotated[User, Depends(require("admin", "operator", "viewer"))],
     ) -> dict[str, Any]:
-        """Discover generated reports; acceptance baselines are not evaluation runs."""
+        """发现已生成的评测报告；验收基线本身不作为评测批次。"""
 
         report_root = os.getenv("EVALUATION_REPORT_DIR")
         if not report_root:
