@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import and_, delete, func, or_, select
+from sqlalchemy import and_, delete, func, or_, select, text
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import InstrumentedAttribute, Session
@@ -52,7 +52,7 @@ class LoadDataConfig:
 
 
 def seed_load_data(session: Session, config: LoadDataConfig) -> dict[str, int]:
-    """批量写入由配置唯一决定的节点、服务、遥测和事件数据。"""
+    """批量写入确定性数据；调用方须传入新建、专用且未处于事务中的 Session。"""
     _reject_pending_changes(session)
     insert = _insert_for_session(session)
 
@@ -75,10 +75,11 @@ def seed_load_data(session: Session, config: LoadDataConfig) -> dict[str, int]:
 
 
 def purge_load_data(session: Session) -> dict[str, int]:
-    """仅删除未被真实关联记录引用的压测数据，并依照外键依赖顺序提交。"""
+    """安全清理压测数据；调用方须传入新建、专用且未处于事务中的 Session。"""
     _reject_pending_changes(session)
 
     try:
+        _lock_cleanup_tables(session)
         _reject_external_references(session)
         counts = {
             "nodes": _count_prefix(session, NodeRow.id, LOAD_NODE_PREFIX),
@@ -216,9 +217,23 @@ def _upsert(
 
 
 def _reject_pending_changes(session: Session) -> None:
-    """拒绝接管调用方未提交的工作，防止本模块的 commit 扩大事务范围。"""
+    """拒绝调用方事务或未提交变更，防止本模块的 commit 扩大事务范围。"""
+    if session.in_transaction():
+        raise ValueError("session 已处于事务中，拒绝执行压测数据操作")
     if session.new or session.dirty or session.deleted:
         raise ValueError("session 存在未提交变更，拒绝执行压测数据操作")
+
+
+def _lock_cleanup_tables(session: Session) -> None:
+    """在 PostgreSQL 锁定相关表，防止检查与删除之间插入引用记录的竞态。"""
+    if session.bind is not None and session.bind.dialect.name == "postgresql":
+        session.execute(
+            text(
+                "LOCK TABLE nodes, services, incidents, telemetry_snapshots, dependency_edges, "
+                "agent_credentials, evidence, diagnoses, action_requests IN SHARE ROW "
+                "EXCLUSIVE MODE"
+            )
+        )
 
 
 def _reject_external_references(session: Session) -> None:
@@ -229,6 +244,13 @@ def _reject_external_references(session: Session) -> None:
             and_(
                 _has_prefix(ServiceRow.node_id, LOAD_NODE_PREFIX),
                 ~_has_prefix(ServiceRow.id, LOAD_SERVICE_PREFIX),
+            ),
+        ),
+        (
+            IncidentRow,
+            and_(
+                _has_prefix(IncidentRow.root_node_id, LOAD_NODE_PREFIX),
+                ~_has_prefix(IncidentRow.id, LOAD_INCIDENT_PREFIX),
             ),
         ),
         (
