@@ -23,9 +23,18 @@
 
 - `python -m pytest`：84 通过，1 个依赖一次性空 PostgreSQL 的测试按环境条件跳过。
 - `ruff check .`：通过。
-- React：12 个测试文件、20 个测试通过；ESLint 与 TypeScript/Vite 生产构建通过。
+- React：12 个测试文件、20 个测试通过，测试输出不含已知 JSDOM CSS/伪元素告警；ESLint 与 TypeScript/Vite 生产构建通过。
 - OpenAPI 与生成 TypeScript schema 重新生成后无漂移。
-- 生产构建主入口为 748.58 kB，gzip 244.84 kB；低于优化前 gzip 245.06 kB 基线。Vite 仍报告原始 chunk 超过 600 kB，未通过提高阈值隐藏告警。
+- 生产构建入口已拆分；原始 Ant Design chunk 仍超过 600 kB，并保留 Vite 警告。
+
+## 持续集成质量门禁
+
+`.github/workflows/quality-gates.yml` 会在每次 `push` 与 Pull Request 时执行，验证仓库内可复现的质量门禁。
+
+- 后端：使用 Python 3.11，执行 `python tools/export_openapi.py` 后检查 `services/ops-api/openapi.json` 无差异，再执行 `python -m pytest` 与 `python -m ruff check .`。
+- 前端：使用锁文件安装依赖，执行 `pnpm generate:api` 后运行 `git diff --exit-code`，再执行 `pnpm test:web`、`pnpm lint:web` 与 `pnpm build:web`。
+
+该 CI 仅验证仓库内可复现质量，不替代目标麒麟环境、真实 PostgreSQL/Redis、Ascend/MindIE、120 次盲测或断网重装；本报告不将这些真实环境验收宣称为已完成。
 
 ## 阻断交付条件
 

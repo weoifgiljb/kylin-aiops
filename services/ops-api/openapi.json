@@ -2020,7 +2020,7 @@
     "/api/v1/system/status": {
       "get": {
         "summary": "System Status",
-        "description": "Return observed model runtime state for the console status surfaces.",
+        "description": "返回控制台展示所需的模型运行时观测状态。",
         "operationId": "system_status_api_v1_system_status_get",
         "responses": {
           "200": {
@@ -2516,7 +2516,7 @@
     "/api/v1/evaluations/runs": {
       "get": {
         "summary": "Evaluation Runs",
-        "description": "Discover generated reports; acceptance baselines are not evaluation runs.",
+        "description": "发现已生成的评测报告；验收基线本身不作为评测批次。",
         "operationId": "evaluation_runs_api_v1_evaluations_runs_get",
         "responses": {
           "200": {
