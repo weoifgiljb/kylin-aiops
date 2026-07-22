@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 from kylin_aiops_api.database import (
     Base,
+    EvidenceRow,
     IncidentRow,
     NodeRow,
     ServiceRow,
@@ -101,6 +102,7 @@ def test_purge_preserves_non_load_records(session: Session) -> None:
             archived_by=None,
         )
     )
+    session.commit()
     session.add(
         ServiceRow(
             id="real-service-01",
@@ -153,7 +155,109 @@ def test_purge_preserves_non_load_records(session: Session) -> None:
     assert table_counts(session) == {"nodes": 1, "services": 1, "telemetry": 1, "incidents": 1}
 
 
-@pytest.mark.parametrize("count,batch_size", [(0, 4), (10, 0)])
-def test_config_rejects_non_positive_sizes(count: int, batch_size: int) -> None:
+def test_purge_rejects_load_data_referenced_by_real_evidence(session: Session) -> None:
+    seed_load_data(session, LoadDataConfig(count=2, seed=42, batch_size=2))
+    session.add(
+        NodeRow(
+            id="real-node-02",
+            hostname="real-node-02",
+            architecture="aarch64",
+            kylin_version="V10",
+            status="online",
+            last_seen_at=datetime(2026, 7, 22, tzinfo=UTC),
+            display_name="生产节点",
+            description="非压测数据",
+            tags=["production"],
+            enabled=True,
+            version=1,
+            archived_at=None,
+            archived_by=None,
+        )
+    )
+    session.commit()
+    session.add(
+        EvidenceRow(
+            id="real-evidence-01",
+            incident_id="load-inc-000000",
+            node_id="real-node-02",
+            kind="log",
+            summary="真实证据引用压测事件",
+            source_uri=None,
+            observed_at=datetime(2026, 7, 22, tzinfo=UTC),
+        )
+    )
+    session.commit()
+
+    with pytest.raises(ValueError, match="关联"):
+        purge_load_data(session)
+
+    assert table_counts(session) == {"nodes": 3, "services": 2, "telemetry": 2, "incidents": 2}
+    assert session.get(EvidenceRow, "real-evidence-01") is not None
+
+
+def test_purge_does_not_match_uppercase_prefix(session: Session) -> None:
+    session.add(
+        NodeRow(
+            id="LOAD-NODE-000001",
+            hostname="upper-node-01",
+            architecture="aarch64",
+            kylin_version="V10",
+            status="online",
+            last_seen_at=datetime(2026, 7, 22, tzinfo=UTC),
+            display_name="大小写不同的真实节点",
+            description="不应被前缀清理匹配",
+            tags=["production"],
+            enabled=True,
+            version=1,
+            archived_at=None,
+            archived_by=None,
+        )
+    )
+    session.commit()
+    seed_load_data(session, LoadDataConfig(count=2, seed=42, batch_size=2))
+
+    purge_load_data(session)
+
+    assert session.get(NodeRow, "LOAD-NODE-000001") is not None
+    assert table_counts(session) == {"nodes": 1, "services": 0, "telemetry": 0, "incidents": 0}
+
+
+def test_seed_rejects_pending_caller_changes(session: Session) -> None:
+    pending_node = NodeRow(
+        id="real-node-pending",
+        hostname="real-node-pending",
+        architecture="aarch64",
+        kylin_version="V10",
+        status="online",
+        last_seen_at=datetime(2026, 7, 22, tzinfo=UTC),
+        display_name="待提交生产节点",
+        description="不得由压测写入提交",
+        tags=["production"],
+        enabled=True,
+        version=1,
+        archived_at=None,
+        archived_by=None,
+    )
+    session.add(pending_node)
+
+    with pytest.raises(ValueError, match="未提交"):
+        seed_load_data(session, LoadDataConfig(count=2, seed=42, batch_size=2))
+
+    assert pending_node in session.new
+
+
+@pytest.mark.parametrize(
+    ("count", "seed", "batch_size"),
+    [
+        (0, 42, 4),
+        (10, 42, 0),
+        (True, 42, 4),
+        (10, True, 4),
+        (10, 42, False),
+        ("10", 42, 4),
+        (10, 42.0, 4),
+    ],
+)
+def test_config_rejects_invalid_values(count: object, seed: object, batch_size: object) -> None:
     with pytest.raises(ValueError):
-        LoadDataConfig(count=count, seed=42, batch_size=batch_size)
+        LoadDataConfig(count=count, seed=seed, batch_size=batch_size)
