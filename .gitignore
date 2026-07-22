@@ -1,4 +1,5 @@
 .venv/
+.worktrees/
 .verification-report/
 .playwright-cli/
 .api-dev.*.log
