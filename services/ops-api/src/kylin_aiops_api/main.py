@@ -9,7 +9,7 @@ from collections.abc import Callable
 from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any
 
 import httpx
 from fastapi import Depends, FastAPI, Query, Request, Response
@@ -27,7 +27,9 @@ from .auth import ApiProblem, AuthManager, Role
 from .auth import AuthUser as User
 from .management import register_management_routes
 from .persistence import Database
-from .queue import RedisStreamActionQueue
+from .queue import ActionQueue, InMemoryActionQueue, RedisStreamActionQueue
+from .schemas import ActionResult, AlertWebhook, Enrollment
+from .sql_store import SqlControlPlaneStore
 from .status import RuntimeStatusProbe, SystemStatus
 from .store import InMemoryStore
 
@@ -36,20 +38,6 @@ class ActionPreview(BaseModel):
     node_id: str
     action_name: str
     parameters: dict[str, Any] = Field(default_factory=dict)
-
-
-class ActionResult(BaseModel):
-    exit_code: int
-    stdout: str = ""
-    stderr: str = ""
-    health_check: Literal["passed", "failed"]
-
-
-class Enrollment(BaseModel):
-    node_id: str
-    hostname: str
-    architecture: str
-    kylin_version: str
 
 
 class TelemetryBatch(BaseModel):
@@ -61,14 +49,6 @@ class TelemetryBatch(BaseModel):
 class ChatMessage(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
     incident_id: str | None = None
-
-
-class Alert(BaseModel):
-    status: Literal["firing", "resolved"]
-    labels: dict[str, str]
-    annotations: dict[str, str] = Field(default_factory=dict)
-    startsAt: datetime
-    fingerprint: str = Field(min_length=1)
 
 
 class GeneratedEvaluationReport(BaseModel):
@@ -88,11 +68,6 @@ def read_evaluation_report(path: Path) -> dict[str, Any]:
 
     report = GeneratedEvaluationReport.model_validate_json(path.read_text(encoding="utf-8"))
     return report.model_dump(exclude_none=True)
-
-
-class AlertWebhook(BaseModel):
-    status: Literal["firing", "resolved"]
-    alerts: list[Alert]
 
 
 TOKENS: dict[str, User] = {
@@ -195,13 +170,15 @@ def create_app(
         os.getenv("AGENT_BOOTSTRAP_TOKEN"),
         cookie_secure,
     )
-    queue = RedisStreamActionQueue.from_url(redis_url) if redis_url else None
+    queue: ActionQueue = (
+        RedisStreamActionQueue.from_url(redis_url) if redis_url else InMemoryActionQueue()
+    )
     database = Database(configured_database_url) if configured_database_url else None
     app.state.database = database
-    app.state.store = InMemoryStore(
-        seed_demo=seed_demo,
-        action_queue=queue,
-        engine=database.engine if database else None,
+    app.state.store = (
+        SqlControlPlaneStore(database.sessions, queue, database.engine)
+        if database is not None
+        else InMemoryStore(seed_demo=seed_demo, action_queue=queue)
     )
     app.state.auth_manager = None
     if database is not None:
@@ -307,6 +284,7 @@ def create_app(
         register_management_routes(
             app,
             app.state.auth_manager,
+            database.sessions,
             current_user,
             secure_cookies=cookie_secure,
         )
@@ -369,7 +347,7 @@ def create_app(
         data: Annotated[InMemoryStore, Depends(store)],
         _: Annotated[User, Depends(require("admin", "operator", "viewer"))],
     ) -> dict[str, Any]:
-        incident = data.incidents.get(incident_id)
+        incident = data.get_incident(incident_id)
         if incident is None:
             raise ApiProblem(404, "INCIDENT_NOT_FOUND", "Incident does not exist")
         return incident
@@ -379,43 +357,7 @@ def create_app(
         payload: AlertWebhook,
         data: Annotated[InMemoryStore, Depends(store)],
     ) -> dict[str, Any]:
-        created = 0
-        incident_ids: list[str] = []
-        for alert in payload.alerts:
-            incident_id = data.alert_incidents.get(alert.fingerprint)
-            if incident_id is None:
-                incident_id = f"inc-{alert.fingerprint}"
-                data.alert_incidents[alert.fingerprint] = incident_id
-                created += 1
-                node_id = alert.labels.get("instance", "unknown")
-                data.incidents[incident_id] = {
-                    "id": incident_id,
-                    "title": alert.annotations.get(
-                        "summary", alert.labels.get("alertname", "Alert")
-                    ),
-                    "severity": alert.labels.get("severity", "warning"),
-                    "status": "open",
-                    "started_at": alert.startsAt.isoformat(),
-                    "root_node": node_id,
-                    "propagation_path": [node_id],
-                    "evidence": [],
-                    "diagnosis": {
-                        "summary": "Awaiting evidence correlation",
-                        "root_cause": node_id,
-                        "severity": alert.labels.get("severity", "warning"),
-                        "propagation_path": [node_id],
-                        "evidence_refs": [],
-                        "recommended_steps": ["Collect node telemetry and service evidence"],
-                        "action_candidates": [],
-                        "confidence": 0.4,
-                        "source": "rule_baseline",
-                    },
-                }
-            incident = data.incidents[incident_id]
-            incident["status"] = "resolved" if alert.status == "resolved" else "open"
-            incident_ids.append(incident_id)
-        data.persist_all()
-        return {"accepted": len(payload.alerts), "created": created, "incident_ids": incident_ids}
+        return data.receive_alerts(payload)
 
     @app.post("/api/v1/incidents/{incident_id}/diagnose")
     def run_diagnosis(
@@ -424,7 +366,7 @@ def create_app(
         data: Annotated[InMemoryStore, Depends(store)],
         _: Annotated[User, Depends(require("admin", "operator"))],
     ) -> dict[str, Any]:
-        incident = data.incidents.get(incident_id)
+        incident = data.get_incident(incident_id)
         if incident is None:
             raise ApiProblem(404, "INCIDENT_NOT_FOUND", "Incident does not exist")
         fallback = incident["diagnosis"]
@@ -464,9 +406,9 @@ def create_app(
         _: Annotated[User, Depends(require("admin", "operator", "viewer"))],
     ) -> dict[str, Any]:
         incident = (
-            data.incidents.get(payload.incident_id)
+            data.get_incident(payload.incident_id)
             if payload.incident_id
-            else next(iter(data.incidents.values()), None)
+            else data.first_incident()
         )
         if incident is None:
             raise ApiProblem(404, "INCIDENT_NOT_FOUND", "Incident does not exist")
@@ -504,7 +446,7 @@ def create_app(
         data: Annotated[InMemoryStore, Depends(store)],
         user: Annotated[User, Depends(require("admin", "operator"))],
     ) -> dict[str, Any]:
-        if incident_id not in data.incidents:
+        if data.get_incident(incident_id) is None:
             raise ApiProblem(404, "INCIDENT_NOT_FOUND", "Incident does not exist")
         rule = ACTION_RULES.get(payload.action_name)
         if rule is None:

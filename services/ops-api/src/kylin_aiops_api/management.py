@@ -9,7 +9,7 @@ from fastapi import Cookie, Depends, FastAPI, Form, Header, Query, Request, Resp
 from pydantic import BaseModel, Field
 from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
 from .auth import ApiProblem, AuthManager, AuthUser, HumanRole, Role
 from .database import (
@@ -22,6 +22,7 @@ from .database import (
     ServiceRow,
     UserRow,
 )
+from .serializers import serialize_incident
 
 CurrentUserDependency = Callable[..., AuthUser]
 
@@ -107,6 +108,7 @@ class IncidentUpdate(BaseModel):
 def register_management_routes(
     app: FastAPI,
     auth: AuthManager,
+    sessions: sessionmaker[Session],
     current_user: CurrentUserDependency,
     secure_cookies: bool,
 ) -> None:
@@ -199,7 +201,7 @@ def register_management_routes(
         q: str | None = None,
         include_archived: bool = False,
     ) -> dict[str, Any]:
-        with auth.sessions() as session:
+        with sessions() as session:
             statement = select(UserRow)
             if not include_archived:
                 statement = statement.where(UserRow.archived_at.is_(None))
@@ -229,7 +231,7 @@ def register_management_routes(
             archived_at=None,
             archived_by=None,
         )
-        with auth.sessions() as session:
+        with sessions() as session:
             session.add(row)
             audit(session, actor, "user.created", f"user:{row.id}", {"role": row.role})
             try:
@@ -245,7 +247,7 @@ def register_management_routes(
         version: Annotated[int, Depends(expected_version)],
         actor: Annotated[AuthUser, Depends(require("admin"))],
     ) -> dict[str, Any]:
-        with auth.sessions() as session:
+        with sessions() as session:
             row = _get(session, UserRow, user_id, "USER_NOT_FOUND", "用户不存在")
             _check_version(row.version, version)
             changes = payload.model_dump(exclude_unset=True)
@@ -270,7 +272,7 @@ def register_management_routes(
         version: Annotated[int, Depends(expected_version)],
         actor: Annotated[AuthUser, Depends(require("admin"))],
     ) -> dict[str, Any]:
-        with auth.sessions() as session:
+        with sessions() as session:
             row = _get(session, UserRow, user_id, "USER_NOT_FOUND", "用户不存在")
             _check_version(row.version, version)
             row.password_hash = auth.passwords.hash(payload.password)
@@ -287,7 +289,7 @@ def register_management_routes(
         version: Annotated[int, Depends(expected_version)],
         actor: Annotated[AuthUser, Depends(require("admin"))],
     ) -> dict[str, Any]:
-        with auth.sessions() as session:
+        with sessions() as session:
             row = _get(session, UserRow, user_id, "USER_NOT_FOUND", "用户不存在")
             _check_version(row.version, version)
             if actor.id == row.id:
@@ -307,7 +309,7 @@ def register_management_routes(
         version: Annotated[int, Depends(expected_version)],
         actor: Annotated[AuthUser, Depends(require("admin"))],
     ) -> dict[str, Any]:
-        with auth.sessions() as session:
+        with sessions() as session:
             row = _get(session, UserRow, user_id, "USER_NOT_FOUND", "用户不存在")
             _check_version(row.version, version)
             _restore(row)
@@ -316,8 +318,8 @@ def register_management_routes(
             session.commit()
             return _user(row)
 
-    _register_resource_routes(app, auth, require, expected_version, audit)
-    _register_incident_routes(app, auth, require, expected_version, audit)
+    _register_resource_routes(app, sessions, require, expected_version, audit)
+    _register_incident_routes(app, sessions, require, expected_version, audit)
 
     @app.get("/api/v1/audit-logs")
     def audit_logs(
@@ -330,7 +332,7 @@ def register_management_routes(
         created_from: datetime | None = None,
         created_to: datetime | None = None,
     ) -> dict[str, Any]:
-        with auth.sessions() as session:
+        with sessions() as session:
             statement = select(AuditLogRow)
             if actor_id:
                 statement = statement.where(AuditLogRow.actor_id == actor_id)
@@ -346,7 +348,7 @@ def register_management_routes(
             return _page([_audit(row) for row in rows], page, page_size)
 
 
-def _register_resource_routes(app, auth, require, expected_version, audit) -> None:
+def _register_resource_routes(app, sessions, require, expected_version, audit) -> None:
     @app.get("/api/v1/resources/nodes")
     def nodes(
         _: Annotated[AuthUser, Depends(require("admin"))],
@@ -354,7 +356,7 @@ def _register_resource_routes(app, auth, require, expected_version, audit) -> No
         page_size: int = Query(default=20, ge=1, le=100),
         include_archived: bool = False,
     ) -> dict[str, Any]:
-        with auth.sessions() as session:
+        with sessions() as session:
             statement = select(NodeRow)
             if not include_archived:
                 statement = statement.where(NodeRow.archived_at.is_(None))
@@ -381,7 +383,7 @@ def _register_resource_routes(app, auth, require, expected_version, audit) -> No
             archived_at=None,
             archived_by=None,
         )
-        with auth.sessions() as session:
+        with sessions() as session:
             session.add(row)
             audit(session, actor, "node.created", f"node:{row.id}")
             try:
@@ -397,7 +399,7 @@ def _register_resource_routes(app, auth, require, expected_version, audit) -> No
         version: Annotated[int, Depends(expected_version)],
         actor: Annotated[AuthUser, Depends(require("admin"))],
     ) -> dict[str, Any]:
-        with auth.sessions() as session:
+        with sessions() as session:
             row = _get(session, NodeRow, node_id, "NODE_NOT_FOUND", "节点不存在")
             _check_version(row.version, version)
             changes = payload.model_dump(exclude_unset=True)
@@ -414,7 +416,7 @@ def _register_resource_routes(app, auth, require, expected_version, audit) -> No
         version: Annotated[int, Depends(expected_version)],
         actor: Annotated[AuthUser, Depends(require("admin"))],
     ) -> dict[str, Any]:
-        with auth.sessions() as session:
+        with sessions() as session:
             row = _get(session, NodeRow, node_id, "NODE_NOT_FOUND", "节点不存在")
             _check_version(row.version, version)
             has_service = session.scalar(
@@ -442,7 +444,7 @@ def _register_resource_routes(app, auth, require, expected_version, audit) -> No
         version: Annotated[int, Depends(expected_version)],
         actor: Annotated[AuthUser, Depends(require("admin"))],
     ) -> dict[str, Any]:
-        with auth.sessions() as session:
+        with sessions() as session:
             row = _get(session, NodeRow, node_id, "NODE_NOT_FOUND", "节点不存在")
             _check_version(row.version, version)
             _restore(row)
@@ -457,7 +459,7 @@ def _register_resource_routes(app, auth, require, expected_version, audit) -> No
         page_size: int = Query(default=20, ge=1, le=100),
         include_archived: bool = False,
     ) -> dict[str, Any]:
-        with auth.sessions() as session:
+        with sessions() as session:
             statement = select(ServiceRow)
             if not include_archived:
                 statement = statement.where(ServiceRow.archived_at.is_(None))
@@ -469,7 +471,7 @@ def _register_resource_routes(app, auth, require, expected_version, audit) -> No
         payload: ServiceCreate,
         actor: Annotated[AuthUser, Depends(require("admin"))],
     ) -> dict[str, Any]:
-        with auth.sessions() as session:
+        with sessions() as session:
             _get(session, NodeRow, payload.node_id, "NODE_NOT_FOUND", "所属节点不存在")
             row = ServiceRow(
                 id=payload.id,
@@ -498,7 +500,7 @@ def _register_resource_routes(app, auth, require, expected_version, audit) -> No
         version: Annotated[int, Depends(expected_version)],
         actor: Annotated[AuthUser, Depends(require("admin"))],
     ) -> dict[str, Any]:
-        with auth.sessions() as session:
+        with sessions() as session:
             row = _get(session, ServiceRow, service_id, "SERVICE_NOT_FOUND", "服务不存在")
             _check_version(row.version, version)
             changes = payload.model_dump(exclude_unset=True)
@@ -523,7 +525,7 @@ def _register_resource_routes(app, auth, require, expected_version, audit) -> No
         version: Annotated[int, Depends(expected_version)],
         actor: Annotated[AuthUser, Depends(require("admin"))],
     ) -> dict[str, Any]:
-        with auth.sessions() as session:
+        with sessions() as session:
             row = _get(session, ServiceRow, service_id, "SERVICE_NOT_FOUND", "服务不存在")
             _check_version(row.version, version)
             edge = session.scalar(
@@ -548,7 +550,7 @@ def _register_resource_routes(app, auth, require, expected_version, audit) -> No
         version: Annotated[int, Depends(expected_version)],
         actor: Annotated[AuthUser, Depends(require("admin"))],
     ) -> dict[str, Any]:
-        with auth.sessions() as session:
+        with sessions() as session:
             row = _get(session, ServiceRow, service_id, "SERVICE_NOT_FOUND", "服务不存在")
             _check_version(row.version, version)
             _restore(row)
@@ -563,7 +565,7 @@ def _register_resource_routes(app, auth, require, expected_version, audit) -> No
         page_size: int = Query(default=20, ge=1, le=100),
         include_archived: bool = False,
     ) -> dict[str, Any]:
-        with auth.sessions() as session:
+        with sessions() as session:
             statement = select(DependencyEdgeRow)
             if not include_archived:
                 statement = statement.where(DependencyEdgeRow.archived_at.is_(None))
@@ -577,7 +579,7 @@ def _register_resource_routes(app, auth, require, expected_version, audit) -> No
     ) -> dict[str, Any]:
         if payload.source_service_id == payload.target_service_id:
             raise ApiProblem(422, "DEPENDENCY_SELF_REFERENCE", "服务不能依赖自身")
-        with auth.sessions() as session:
+        with sessions() as session:
             _get(
                 session,
                 ServiceRow,
@@ -623,7 +625,7 @@ def _register_resource_routes(app, auth, require, expected_version, audit) -> No
         version: Annotated[int, Depends(expected_version)],
         actor: Annotated[AuthUser, Depends(require("admin"))],
     ) -> dict[str, Any]:
-        with auth.sessions() as session:
+        with sessions() as session:
             row = _get(
                 session,
                 DependencyEdgeRow,
@@ -646,7 +648,7 @@ def _register_resource_routes(app, auth, require, expected_version, audit) -> No
         version: Annotated[int, Depends(expected_version)],
         actor: Annotated[AuthUser, Depends(require("admin"))],
     ) -> dict[str, Any]:
-        with auth.sessions() as session:
+        with sessions() as session:
             row = _get(
                 session,
                 DependencyEdgeRow,
@@ -693,7 +695,7 @@ def _register_resource_routes(app, auth, require, expected_version, audit) -> No
         version: Annotated[int, Depends(expected_version)],
         actor: Annotated[AuthUser, Depends(require("admin"))],
     ) -> dict[str, Any]:
-        with auth.sessions() as session:
+        with sessions() as session:
             row = _get(
                 session,
                 DependencyEdgeRow,
@@ -710,7 +712,7 @@ def _register_resource_routes(app, auth, require, expected_version, audit) -> No
             return _dependency(row)
 
 
-def _register_incident_routes(app, auth, require, expected_version, audit) -> None:
+def _register_incident_routes(app, sessions, require, expected_version, audit) -> None:
     @app.get("/api/v1/incidents")
     def incidents(
         _: Annotated[AuthUser, Depends(require("admin", "operator", "viewer"))],
@@ -720,7 +722,7 @@ def _register_incident_routes(app, auth, require, expected_version, audit) -> No
         source: str | None = None,
         include_archived: bool = False,
     ) -> dict[str, Any]:
-        with auth.sessions() as session:
+        with sessions() as session:
             statement = select(IncidentRow)
             if not include_archived:
                 statement = statement.where(IncidentRow.archived_at.is_(None))
@@ -736,7 +738,7 @@ def _register_incident_routes(app, auth, require, expected_version, audit) -> No
         incident_id: str,
         _: Annotated[AuthUser, Depends(require("admin", "operator", "viewer"))],
     ) -> dict[str, Any]:
-        with auth.sessions() as session:
+        with sessions() as session:
             row = _get(session, IncidentRow, incident_id, "INCIDENT_NOT_FOUND", "事件不存在")
             return _incident(row, session)
 
@@ -762,7 +764,7 @@ def _register_incident_routes(app, auth, require, expected_version, audit) -> No
             archived_at=None,
             archived_by=None,
         )
-        with auth.sessions() as session:
+        with sessions() as session:
             if payload.root_node_id:
                 _get(session, NodeRow, payload.root_node_id, "NODE_NOT_FOUND", "根节点不存在")
             session.add(row)
@@ -777,7 +779,7 @@ def _register_incident_routes(app, auth, require, expected_version, audit) -> No
         version: Annotated[int, Depends(expected_version)],
         actor: Annotated[AuthUser, Depends(require("admin", "operator"))],
     ) -> dict[str, Any]:
-        with auth.sessions() as session:
+        with sessions() as session:
             row = _get(session, IncidentRow, incident_id, "INCIDENT_NOT_FOUND", "事件不存在")
             _check_version(row.version, version)
             changes = payload.model_dump(exclude_unset=True)
@@ -809,7 +811,7 @@ def _register_incident_routes(app, auth, require, expected_version, audit) -> No
         version: Annotated[int, Depends(expected_version)],
         actor: Annotated[AuthUser, Depends(require("admin", "operator"))],
     ) -> dict[str, Any]:
-        with auth.sessions() as session:
+        with sessions() as session:
             row = _get(session, IncidentRow, incident_id, "INCIDENT_NOT_FOUND", "事件不存在")
             _check_version(row.version, version)
             if row.status != "resolved":
@@ -827,7 +829,7 @@ def _register_incident_routes(app, auth, require, expected_version, audit) -> No
         version: Annotated[int, Depends(expected_version)],
         actor: Annotated[AuthUser, Depends(require("admin", "operator"))],
     ) -> dict[str, Any]:
-        with auth.sessions() as session:
+        with sessions() as session:
             row = _get(session, IncidentRow, incident_id, "INCIDENT_NOT_FOUND", "事件不存在")
             _check_version(row.version, version)
             if row.source == "alert" and actor.role != "admin":
@@ -958,45 +960,7 @@ def _incident(row: IncidentRow, session: Session) -> dict[str, Any]:
         session.scalars(select(EvidenceRow).where(EvidenceRow.incident_id == row.id))
     )
     diagnosis = session.scalar(select(DiagnosisRow).where(DiagnosisRow.incident_id == row.id))
-    evidence = [
-        {
-            "id": item.id,
-            "kind": item.kind,
-            "node_id": item.node_id,
-            "summary": item.summary,
-            "observed_at": _dt(item.observed_at),
-        }
-        for item in evidence_rows
-    ]
-    diagnosis_data = {
-        "summary": diagnosis.summary if diagnosis else "等待诊断",
-        "root_cause": diagnosis.root_cause if diagnosis else row.root_node_id or "",
-        "severity": diagnosis.severity if diagnosis else row.severity,
-        "propagation_path": diagnosis.propagation_path if diagnosis else [],
-        "evidence_refs": diagnosis.evidence_refs if diagnosis else [],
-        "recommended_steps": diagnosis.recommended_steps if diagnosis else [],
-        "action_candidates": diagnosis.action_candidates if diagnosis else [],
-        "confidence": diagnosis.confidence if diagnosis else 0.0,
-        "source": diagnosis.source if diagnosis else "pending",
-    }
-    return {
-        "id": row.id,
-        "title": row.title,
-        "fault_type": row.fault_type,
-        "severity": row.severity,
-        "status": row.status,
-        "source": row.source,
-        "started_at": _dt(row.started_at),
-        "ended_at": _dt(row.ended_at),
-        "root_node": row.root_node_id,
-        "assignee_user_id": row.assignee_user_id,
-        "handling_notes": row.handling_notes,
-        "version": row.version,
-        "archived_at": _dt(row.archived_at),
-        "propagation_path": diagnosis_data["propagation_path"],
-        "evidence": evidence,
-        "diagnosis": diagnosis_data,
-    }
+    return serialize_incident(row, evidence_rows, diagnosis)
 
 
 def _audit(row: AuditLogRow) -> dict[str, Any]:

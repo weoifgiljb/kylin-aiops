@@ -328,6 +328,29 @@ def test_database_incident_is_visible_to_overview_and_diagnosis(tmp_path: Path) 
     assert diagnosis.json()["source"] == "pending"
 
 
+def test_database_chat_uses_latest_incident_when_id_is_omitted(tmp_path: Path) -> None:
+    client = management_client(tmp_path)
+    admin = login(client, "admin", "correct-horse-battery-staple")
+    client.post(
+        "/api/v1/incidents",
+        headers=admin,
+        json={
+            "title": "数据库问答回归",
+            "fault_type": "review",
+            "severity": "medium",
+        },
+    )
+
+    response = client.post(
+        "/api/v1/chat/sessions/default/messages",
+        headers=admin,
+        json={"message": "当前发生了什么？"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["answer"] == "等待诊断"
+
+
 def test_agent_credential_survives_api_restart(tmp_path: Path, monkeypatch) -> None:
     database_url = f"sqlite+pysqlite:///{tmp_path / 'agents.db'}"
     Base.metadata.create_all(create_engine(database_url))

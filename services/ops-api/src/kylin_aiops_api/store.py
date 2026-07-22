@@ -23,6 +23,7 @@ from .database import (
     ServiceRow,
 )
 from .queue import ActionQueue, InMemoryActionQueue
+from .schemas import AlertWebhook
 
 
 class InMemoryStore:
@@ -226,6 +227,61 @@ class InMemoryStore:
             ),
             "nodes": nodes,
             "topology": topology,
+        }
+
+    def get_incident(self, incident_id: str) -> dict[str, Any] | None:
+        """按标识读取当前内存事件，供无数据库测试和演示模式使用。"""
+
+        return self.incidents.get(incident_id)
+
+    def first_incident(self) -> dict[str, Any] | None:
+        """返回首个内存事件，维持未指定问答上下文时的既有行为。"""
+
+        return next(iter(self.incidents.values()), None)
+
+    def receive_alerts(self, payload: AlertWebhook) -> dict[str, Any]:
+        """在内存模式中按 fingerprint 幂等接收告警。"""
+
+        created = 0
+        incident_ids: list[str] = []
+        for alert in payload.alerts:
+            incident_id = self.alert_incidents.get(alert.fingerprint)
+            if incident_id is None:
+                incident_id = f"inc-{alert.fingerprint}"
+                self.alert_incidents[alert.fingerprint] = incident_id
+                created += 1
+                node_id = alert.labels.get("instance", "unknown")
+                self.incidents[incident_id] = {
+                    "id": incident_id,
+                    "title": alert.annotations.get(
+                        "summary", alert.labels.get("alertname", "Alert")
+                    ),
+                    "severity": alert.labels.get("severity", "warning"),
+                    "status": "open",
+                    "started_at": alert.startsAt.isoformat(),
+                    "root_node": node_id,
+                    "propagation_path": [node_id],
+                    "evidence": [],
+                    "diagnosis": {
+                        "summary": "Awaiting evidence correlation",
+                        "root_cause": node_id,
+                        "severity": alert.labels.get("severity", "warning"),
+                        "propagation_path": [node_id],
+                        "evidence_refs": [],
+                        "recommended_steps": ["Collect node telemetry and service evidence"],
+                        "action_candidates": [],
+                        "confidence": 0.4,
+                        "source": "rule_baseline",
+                    },
+                }
+            incident = self.incidents[incident_id]
+            incident["status"] = "resolved" if alert.status == "resolved" else "open"
+            incident_ids.append(incident_id)
+        self.persist_all()
+        return {
+            "accepted": len(payload.alerts),
+            "created": created,
+            "incident_ids": incident_ids,
         }
 
     def persist_all(self) -> None:
