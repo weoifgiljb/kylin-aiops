@@ -1,3 +1,7 @@
+import json
+import os
+import subprocess
+import sys
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -16,6 +20,86 @@ from kylin_aiops_api.database import (
 from kylin_aiops_api.load_data import LoadDataConfig, purge_load_data, seed_load_data
 from sqlalchemy import create_engine, event, func, insert, select
 from sqlalchemy.orm import Session
+
+
+def test_load_data_cli_requires_explicit_confirmation(tmp_path: Path) -> None:
+    database_path = tmp_path / "unconfirmed-load-data.db"
+    environment = os.environ | {
+        "PYTHONPATH": str(Path("services/ops-api/src").resolve()),
+    }
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "tools/seed_load_data.py",
+            "--database-url",
+            f"sqlite+pysqlite:///{database_path}",
+        ],
+        capture_output=True,
+        check=False,
+        env=environment,
+        text=True,
+    )
+
+    assert completed.returncode != 0
+    assert "--confirm-load-data" in completed.stderr
+    assert not database_path.exists()
+
+
+def test_load_data_cli_seeds_then_purges_existing_schema(tmp_path: Path) -> None:
+    database_path = tmp_path / "load-data.db"
+    database_url = f"sqlite+pysqlite:///{database_path}"
+    engine = create_engine(database_url)
+    try:
+        Base.metadata.create_all(engine)
+    finally:
+        engine.dispose()
+
+    environment = os.environ | {
+        "PYTHONPATH": str(Path("services/ops-api/src").resolve()),
+    }
+    seed_result = subprocess.run(
+        [
+            sys.executable,
+            "tools/seed_load_data.py",
+            "--database-url",
+            database_url,
+            "--confirm-load-data",
+            "--count",
+            "10",
+        ],
+        capture_output=True,
+        check=False,
+        env=environment,
+        text=True,
+    )
+
+    assert seed_result.returncode == 0, seed_result.stderr
+    assert json.loads(seed_result.stdout) == {
+        "mode": "seed",
+        "counts": {"nodes": 10, "services": 10, "telemetry": 10, "incidents": 10},
+    }
+
+    purge_result = subprocess.run(
+        [
+            sys.executable,
+            "tools/seed_load_data.py",
+            "--database-url",
+            database_url,
+            "--confirm-load-data",
+            "--purge",
+        ],
+        capture_output=True,
+        check=False,
+        env=environment,
+        text=True,
+    )
+
+    assert purge_result.returncode == 0, purge_result.stderr
+    assert json.loads(purge_result.stdout) == {
+        "mode": "purge",
+        "counts": {"nodes": 10, "services": 10, "telemetry": 10, "incidents": 10},
+    }
 
 
 @pytest.fixture
