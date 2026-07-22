@@ -283,6 +283,30 @@ def test_operator_manages_manual_incident_but_cannot_rewrite_alert(tmp_path: Pat
     assert alert_update.json()["code"] == "ALERT_FIELDS_IMMUTABLE"
 
 
+def test_database_incident_is_visible_to_overview_and_diagnosis(tmp_path: Path) -> None:
+    client = management_client(tmp_path)
+    admin = login(client, "admin", "correct-horse-battery-staple")
+
+    created = client.post(
+        "/api/v1/incidents",
+        headers=admin,
+        json={
+            "title": "数据库状态源回归",
+            "fault_type": "review",
+            "severity": "high",
+        },
+    )
+    incident_id = created.json()["id"]
+
+    overview = client.get("/api/v1/overview", headers=admin)
+    diagnosis = client.post(f"/api/v1/incidents/{incident_id}/diagnose", headers=admin)
+
+    assert created.status_code == 201
+    assert overview.json()["active_incidents"] == 1
+    assert diagnosis.status_code == 200
+    assert diagnosis.json()["source"] == "pending"
+
+
 def test_agent_credential_survives_api_restart(tmp_path: Path, monkeypatch) -> None:
     database_url = f"sqlite+pysqlite:///{tmp_path / 'agents.db'}"
     Base.metadata.create_all(create_engine(database_url))
