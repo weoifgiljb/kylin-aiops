@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from kylin_aiops_api.auth import seed_admin
 from kylin_aiops_api.database import Base
 from kylin_aiops_api.main import create_app
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 
 
 def management_client(tmp_path: Path) -> TestClient:
@@ -97,6 +97,67 @@ def test_admin_manages_users_and_operator_cannot_manage_resources(tmp_path: Path
     assert "password_hash" not in created.json()
     assert denied.status_code == 403
     assert denied.json()["code"] == "INSUFFICIENT_ROLE"
+
+
+def test_user_list_uses_database_pagination(tmp_path: Path) -> None:
+    client = management_client(tmp_path)
+    admin = login(client, "admin", "correct-horse-battery-staple")
+    for index in range(25):
+        response = client.post(
+            "/api/v1/admin/users",
+            headers=admin,
+            json={
+                "username": f"viewer-{index:02d}",
+                "display_name": f"只读用户 {index:02d}",
+                "password": "viewer-password-123",
+                "role": "viewer",
+            },
+        )
+        assert response.status_code == 201
+
+    first = client.get("/api/v1/admin/users?page=1&page_size=20", headers=admin).json()
+    second = client.get("/api/v1/admin/users?page=2&page_size=20", headers=admin).json()
+
+    assert len(first["items"]) == 20
+    assert len(second["items"]) == 6
+    assert first["total"] == 26
+    assert {item["id"] for item in first["items"]}.isdisjoint(
+        item["id"] for item in second["items"]
+    )
+
+
+def test_incident_list_uses_bounded_business_queries(tmp_path: Path) -> None:
+    client = management_client(tmp_path)
+    admin = login(client, "admin", "correct-horse-battery-staple")
+    for index in range(20):
+        response = client.post(
+            "/api/v1/incidents",
+            headers=admin,
+            json={
+                "title": f"批量事件 {index:02d}",
+                "fault_type": "query_count",
+                "severity": "medium",
+            },
+        )
+        assert response.status_code == 201
+
+    statements: list[str] = []
+
+    def count_business_query(_conn, _cursor, statement, _parameters, _context, _many) -> None:
+        lowered = statement.lower()
+        if "from users" not in lowered and "from auth_sessions" not in lowered:
+            statements.append(statement)
+
+    engine = client.app.state.database.engine
+    event.listen(engine, "before_cursor_execute", count_business_query)
+    try:
+        response = client.get("/api/v1/incidents?page=1&page_size=20", headers=admin)
+    finally:
+        event.remove(engine, "before_cursor_execute", count_business_query)
+
+    assert response.status_code == 200
+    assert len(response.json()["items"]) == 20
+    assert len(statements) <= 4
 
 
 def test_password_reset_revokes_sessions_and_last_admin_is_protected(tmp_path: Path) -> None:

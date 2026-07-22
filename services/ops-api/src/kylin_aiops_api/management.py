@@ -1,6 +1,7 @@
 """注册账号、资源、事件和审计管理接口，并统一执行事务与权限校验。"""
 
 import uuid
+from collections import defaultdict
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Annotated, Any, Literal
@@ -22,6 +23,7 @@ from .database import (
     ServiceRow,
     UserRow,
 )
+from .pagination import page_response, page_scalars
 from .serializers import serialize_incident
 
 CurrentUserDependency = Callable[..., AuthUser]
@@ -209,8 +211,18 @@ def register_management_routes(
                 statement = statement.where(
                     or_(UserRow.username.contains(q), UserRow.display_name.contains(q))
                 )
-            rows = list(session.scalars(statement.order_by(UserRow.created_at.desc())))
-            return _page([_user(row) for row in rows], page, page_size)
+            result = page_scalars(
+                session,
+                statement.order_by(UserRow.created_at.desc()),
+                page,
+                page_size,
+            )
+            return page_response(
+                [_user(row) for row in result.items],
+                result.total,
+                page,
+                page_size,
+            )
 
     @app.post("/api/v1/admin/users", status_code=201)
     def create_user(
@@ -344,8 +356,18 @@ def register_management_routes(
                 statement = statement.where(AuditLogRow.created_at >= created_from)
             if created_to:
                 statement = statement.where(AuditLogRow.created_at <= created_to)
-            rows = list(session.scalars(statement.order_by(AuditLogRow.created_at.desc())))
-            return _page([_audit(row) for row in rows], page, page_size)
+            result = page_scalars(
+                session,
+                statement.order_by(AuditLogRow.created_at.desc()),
+                page,
+                page_size,
+            )
+            return page_response(
+                [_audit(row) for row in result.items],
+                result.total,
+                page,
+                page_size,
+            )
 
 
 def _register_resource_routes(app, sessions, require, expected_version, audit) -> None:
@@ -354,14 +376,24 @@ def _register_resource_routes(app, sessions, require, expected_version, audit) -
         _: Annotated[AuthUser, Depends(require("admin"))],
         page: int = Query(default=1, ge=1),
         page_size: int = Query(default=20, ge=1, le=100),
+        q: str | None = None,
         include_archived: bool = False,
     ) -> dict[str, Any]:
         with sessions() as session:
             statement = select(NodeRow)
             if not include_archived:
                 statement = statement.where(NodeRow.archived_at.is_(None))
-            rows = list(session.scalars(statement.order_by(NodeRow.id)))
-            return _page([_node(row) for row in rows], page, page_size)
+            if q:
+                statement = statement.where(
+                    or_(NodeRow.id.contains(q), NodeRow.display_name.contains(q))
+                )
+            result = page_scalars(session, statement.order_by(NodeRow.id), page, page_size)
+            return page_response(
+                [_node(row) for row in result.items],
+                result.total,
+                page,
+                page_size,
+            )
 
     @app.post("/api/v1/resources/nodes", status_code=201)
     def create_node(
@@ -457,14 +489,24 @@ def _register_resource_routes(app, sessions, require, expected_version, audit) -
         _: Annotated[AuthUser, Depends(require("admin"))],
         page: int = Query(default=1, ge=1),
         page_size: int = Query(default=20, ge=1, le=100),
+        q: str | None = None,
         include_archived: bool = False,
     ) -> dict[str, Any]:
         with sessions() as session:
             statement = select(ServiceRow)
             if not include_archived:
                 statement = statement.where(ServiceRow.archived_at.is_(None))
-            rows = list(session.scalars(statement.order_by(ServiceRow.id)))
-            return _page([_service(row) for row in rows], page, page_size)
+            if q:
+                statement = statement.where(
+                    or_(ServiceRow.id.contains(q), ServiceRow.name.contains(q))
+                )
+            result = page_scalars(session, statement.order_by(ServiceRow.id), page, page_size)
+            return page_response(
+                [_service(row) for row in result.items],
+                result.total,
+                page,
+                page_size,
+            )
 
     @app.post("/api/v1/resources/services", status_code=201)
     def create_service(
@@ -569,8 +611,18 @@ def _register_resource_routes(app, sessions, require, expected_version, audit) -
             statement = select(DependencyEdgeRow)
             if not include_archived:
                 statement = statement.where(DependencyEdgeRow.archived_at.is_(None))
-            rows = list(session.scalars(statement.order_by(DependencyEdgeRow.id)))
-            return _page([_dependency(row) for row in rows], page, page_size)
+            result = page_scalars(
+                session,
+                statement.order_by(DependencyEdgeRow.id),
+                page,
+                page_size,
+            )
+            return page_response(
+                [_dependency(row) for row in result.items],
+                result.total,
+                page,
+                page_size,
+            )
 
     @app.post("/api/v1/resources/dependencies", status_code=201)
     def create_dependency(
@@ -730,8 +782,35 @@ def _register_incident_routes(app, sessions, require, expected_version, audit) -
                 statement = statement.where(IncidentRow.status == status)
             if source:
                 statement = statement.where(IncidentRow.source == source)
-            rows = list(session.scalars(statement.order_by(IncidentRow.started_at.desc())))
-            return _page([_incident(row, session) for row in rows], page, page_size)
+            result = page_scalars(
+                session,
+                statement.order_by(IncidentRow.started_at.desc()),
+                page,
+                page_size,
+            )
+            if not result.items:
+                return page_response([], result.total, page, page_size)
+            incident_ids = [row.id for row in result.items]
+            evidence_by_incident: dict[str, list[EvidenceRow]] = defaultdict(list)
+            for evidence in session.scalars(
+                select(EvidenceRow).where(EvidenceRow.incident_id.in_(incident_ids))
+            ):
+                evidence_by_incident[evidence.incident_id].append(evidence)
+            diagnosis_by_incident = {
+                diagnosis.incident_id: diagnosis
+                for diagnosis in session.scalars(
+                    select(DiagnosisRow).where(DiagnosisRow.incident_id.in_(incident_ids))
+                )
+            }
+            items = [
+                serialize_incident(
+                    row,
+                    evidence_by_incident[row.id],
+                    diagnosis_by_incident.get(row.id),
+                )
+                for row in result.items
+            ]
+            return page_response(items, result.total, page, page_size)
 
     @app.get("/api/v1/incidents/{incident_id}")
     def incident(
@@ -881,16 +960,6 @@ def _get(session: Session, model, key, code: str, message: str):
     if row is None:
         raise ApiProblem(404, code, message)
     return row
-
-
-def _page(items: list[dict[str, Any]], page: int, page_size: int) -> dict[str, Any]:
-    start = (page - 1) * page_size
-    return {
-        "items": items[start : start + page_size],
-        "total": len(items),
-        "page": page,
-        "page_size": page_size,
-    }
 
 
 def _dt(value: datetime | None) -> str | None:
