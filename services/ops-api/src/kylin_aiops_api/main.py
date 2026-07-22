@@ -27,7 +27,7 @@ from .auth import ApiProblem, AuthManager, Role
 from .auth import AuthUser as User
 from .management import register_management_routes
 from .persistence import Database
-from .queue import ActionQueue, InMemoryActionQueue, RedisStreamActionQueue
+from .queue import ActionQueue, InMemoryActionQueue, RedisActionQueue
 from .schemas import ActionResult, AlertWebhook, Enrollment
 from .sql_store import SqlControlPlaneStore
 from .status import RuntimeStatusProbe, SystemStatus
@@ -171,7 +171,7 @@ def create_app(
         cookie_secure,
     )
     queue: ActionQueue = (
-        RedisStreamActionQueue.from_url(redis_url) if redis_url else InMemoryActionQueue()
+        RedisActionQueue.from_url(redis_url) if redis_url else InMemoryActionQueue()
     )
     database = Database(configured_database_url) if configured_database_url else None
     app.state.database = database

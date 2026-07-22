@@ -1,4 +1,4 @@
-"""Approved-action queue adapters used by the center API and polling agents."""
+"""提供中心 API 与轮询 Agent 共享的已审批动作队列适配器。"""
 
 import json
 from dataclasses import asdict
@@ -11,7 +11,7 @@ from .actions import ActionEnvelope
 
 
 class ActionQueue(Protocol):
-    """Minimal queue contract shared by memory tests and Redis Streams."""
+    """内存测试与 Redis 实现共享的最小队列契约。"""
 
     def enqueue(self, envelope: ActionEnvelope) -> None: ...
     def dequeue(self, node_id: str) -> ActionEnvelope | None: ...
@@ -32,7 +32,7 @@ def _deserialize(payload: str) -> ActionEnvelope:
 
 
 class InMemoryActionQueue:
-    """Deterministic queue used by local development and unit tests."""
+    """用于本地开发和单元测试的确定性队列。"""
 
     def __init__(self) -> None:
         self.items: list[ActionEnvelope] = []
@@ -47,24 +47,24 @@ class InMemoryActionQueue:
         return None
 
 
-class RedisStreamActionQueue:
-    """Redis Streams adapter that removes an action when its target agent consumes it."""
+class RedisActionQueue:
+    """按节点隔离的 Redis List 队列，使用 LPOP 原子取走动作。"""
 
-    stream = "kylin-aiops:approved-actions"
+    prefix = "kylin-aiops:approved-actions"
 
     def __init__(self, redis: Redis) -> None:
         self.redis = redis
 
     @classmethod
-    def from_url(cls, url: str) -> "RedisStreamActionQueue":
+    def from_url(cls, url: str) -> "RedisActionQueue":
         return cls(Redis.from_url(url, decode_responses=True))
 
+    def _key(self, node_id: str) -> str:
+        return f"{self.prefix}:{node_id}"
+
     def enqueue(self, envelope: ActionEnvelope) -> None:
-        self.redis.xadd(self.stream, {"node_id": envelope.node_id, "payload": _serialize(envelope)})
+        self.redis.rpush(self._key(envelope.node_id), _serialize(envelope))
 
     def dequeue(self, node_id: str) -> ActionEnvelope | None:
-        for message_id, fields in self.redis.xrange(self.stream, min="-", max="+", count=100):
-            if fields["node_id"] == node_id:
-                self.redis.xdel(self.stream, message_id)
-                return _deserialize(fields["payload"])
-        return None
+        payload = self.redis.lpop(self._key(node_id))
+        return _deserialize(payload) if payload is not None else None
