@@ -18,6 +18,7 @@ export default defineConfig({
           react: ['react', 'react-dom', 'react-router-dom'],
           'react-flow': ['@xyflow/react'],
           state: ['@tanstack/react-query', 'zustand'],
+          antd: ['antd', '@ant-design/icons'],
         },
       },
     },
