@@ -11,12 +11,22 @@ import { IncidentTable } from './IncidentTable'
 export default function IncidentsPage() {
   const { message } = App.useApp()
   const queryClient = useQueryClient()
-  const { data } = useQuery({ queryKey: ['incidents'], queryFn: api.incidents })
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
+  const { data } = useQuery({
+    queryKey: ['incidents', page, pageSize],
+    queryFn: () => api.incidents({ page, pageSize }),
+  })
   const [selected, setSelected] = useState<Incident | null>(null)
   const [editing, setEditing] = useState<Incident | 'new' | null>(null)
   const [form] = Form.useForm()
   const incidents = data?.items ?? []
   const refresh = () => void queryClient.invalidateQueries({ queryKey: ['incidents'] })
+  const showError = (error: unknown) => void message.error(
+    error instanceof ApiError && error.status === 409
+      ? '数据已被其他人更新，请刷新列表后重试'
+      : error instanceof Error ? error.message : '操作失败',
+  )
 
   const save = useMutation({
     mutationFn: (values: Record<string, unknown>) => editing === 'new'
@@ -33,12 +43,7 @@ export default function IncidentsPage() {
       refresh()
       void message.success('事件已保存')
     },
-    onError: (error) => {
-      const text = error instanceof ApiError && error.status === 409
-        ? '数据已被其他人更新，请刷新列表后重试'
-        : error instanceof Error ? error.message : '保存失败'
-      void message.error(text)
-    },
+    onError: showError,
   })
   const approve = useMutation({
     mutationFn: async (incident: Incident) => {
@@ -55,6 +60,16 @@ export default function IncidentsPage() {
     onSuccess: () => void message.success('动作已审批，等待目标 Agent 执行'),
     onError: (error) => void message.error(error instanceof Error ? error.message : '审批失败'),
   })
+  const toggleArchive = useMutation({
+    mutationFn: (record: Incident) => record.archived_at
+      ? api.restoreIncident(record.id, record.version)
+      : api.archiveIncident(record.id, record.version),
+    onSuccess: (incident) => {
+      setSelected(incident)
+      refresh()
+    },
+    onError: showError,
+  })
 
   function openEditor(record: Incident | 'new') {
     setEditing(record)
@@ -62,23 +77,26 @@ export default function IncidentsPage() {
     else form.setFieldsValue(record)
   }
 
-  async function archive(record: Incident) {
-    const result = record.archived_at
-      ? await api.restoreIncident(record.id, record.version)
-      : await api.archiveIncident(record.id, record.version)
-    setSelected(result)
-    refresh()
-  }
-
   return <div className="dashboard-grid">
     <Card title="事件中心" extra={<Button type="primary" onClick={() => openEditor('new')}>新增人工事件</Button>}>
-      <IncidentTable incidents={incidents} selectedId={selected?.id} onSelect={setSelected} />
+      <IncidentTable
+        incidents={incidents}
+        selectedId={selected?.id}
+        onSelect={setSelected}
+        page={page}
+        pageSize={pageSize}
+        total={data?.total ?? 0}
+        onPageChange={(nextPage, nextPageSize) => {
+          setPage(nextPageSize === pageSize ? nextPage : 1)
+          setPageSize(nextPageSize)
+        }}
+      />
     </Card>
     {selected ? <div>
       <Space className="incident-management-actions">
         <Tag color={selected.source === 'manual' ? 'blue' : 'gold'}>{selected.source === 'manual' ? '人工事件' : '自动告警'}</Tag>
         <Button onClick={() => openEditor(selected)}>编辑处置</Button>
-        <Button disabled={!selected.archived_at && selected.status !== 'resolved'} danger={!selected.archived_at} onClick={() => void archive(selected)}>{selected.archived_at ? '恢复' : '归档'}</Button>
+        <Button disabled={!selected.archived_at && selected.status !== 'resolved'} danger={!selected.archived_at} onClick={() => toggleArchive.mutate(selected)}>{selected.archived_at ? '恢复' : '归档'}</Button>
       </Space>
       <IncidentInspector incident={selected} onApprove={() => approve.mutate(selected)} />
     </div> : <aside className="incident-inspector"><Empty description="选择一个事件查看证据" /></aside>}

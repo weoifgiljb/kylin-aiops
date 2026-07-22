@@ -16,7 +16,11 @@ export default function OverviewPage() {
   const setSelectedIncidentId = useUiStore((state) => state.setSelectedIncidentId)
   const [overviewQuery, incidentsQuery] = useQueries({ queries: [
     { queryKey: ['overview'], queryFn: api.overview, refetchInterval: 15_000 },
-    { queryKey: ['incidents'], queryFn: api.incidents, refetchInterval: 15_000 },
+    {
+      queryKey: ['incidents', 1, 20],
+      queryFn: () => api.incidents({ page: 1, pageSize: 20 }),
+      refetchInterval: 15_000,
+    },
   ] })
   const incidents = useMemo(() => incidentsQuery.data?.items ?? [], [incidentsQuery.data?.items])
   const selected = useMemo(() => incidents.find((item) => item.id === selectedIncidentId) ?? incidents[0], [incidents, selectedIncidentId])

@@ -16,6 +16,21 @@ import type {
 
 type Schemas = components['schemas']
 
+export interface ListParams {
+  page: number
+  pageSize: number
+  includeArchived?: boolean
+  q?: string
+}
+
+export interface AuditLogParams extends ListParams {
+  actor_id?: string
+  action?: string
+  target?: string
+  created_from?: string
+  created_to?: string
+}
+
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? ''
 let accessToken: string | null = null
 let refreshPromise: Promise<string> | null = null
@@ -88,6 +103,16 @@ function versionHeader(version: number): HeadersInit {
   return { 'If-Match': `"${version}"` }
 }
 
+function listQuery(params: ListParams): URLSearchParams {
+  const query = new URLSearchParams({
+    page: String(params.page),
+    page_size: String(params.pageSize),
+  })
+  if (params.includeArchived) query.set('include_archived', 'true')
+  if (params.q) query.set('q', params.q)
+  return query
+}
+
 export const api = {
   login: async (username: string, password: string) => {
     const body = new URLSearchParams({ username, password })
@@ -112,7 +137,9 @@ export const api = {
   me: () => request<CurrentUser>('/api/v1/auth/me', undefined, false),
   overview: () => request<Overview>('/api/v1/overview'),
   systemStatus: () => request<SystemStatus>('/api/v1/system/status'),
-  incidents: () => request<Schemas['IncidentPage']>('/api/v1/incidents'),
+  incidents: (params: ListParams) => request<Schemas['IncidentPage']>(
+    `/api/v1/incidents?${listQuery(params)}`,
+  ),
   incident: (id: string) => request<Incident>(`/api/v1/incidents/${id}`),
   createIncident: (body: Schemas['IncidentCreate']) => request<Incident>('/api/v1/incidents', {
     method: 'POST', body: JSON.stringify(body),
@@ -141,7 +168,9 @@ export const api = {
     request<{ id: string; status: string }>(`/api/v1/action-requests/${actionId}/approve`, { method: 'POST' }),
   evaluations: () => request<EvaluationRunList>('/api/v1/evaluations/runs'),
   evaluation: (id: string) => request<EvaluationRun>(`/api/v1/evaluations/runs/${id}`),
-  users: (includeArchived = false) => request<Schemas['UserPage']>(`/api/v1/admin/users?include_archived=${includeArchived}`),
+  users: (params: ListParams) => request<Schemas['UserPage']>(
+    `/api/v1/admin/users?${listQuery(params)}`,
+  ),
   createUser: (body: Schemas['UserCreate']) => request<UserAccount>('/api/v1/admin/users', {
     method: 'POST', body: JSON.stringify(body),
   }),
@@ -157,7 +186,9 @@ export const api = {
   resetUserPassword: (id: string, version: number, password: string) => request<UserAccount>(`/api/v1/admin/users/${id}/reset-password`, {
     method: 'POST', headers: versionHeader(version), body: JSON.stringify({ password }),
   }),
-  nodes: (includeArchived = false) => request<Schemas['NodePage']>(`/api/v1/resources/nodes?include_archived=${includeArchived}`),
+  nodes: (params: ListParams) => request<Schemas['NodePage']>(
+    `/api/v1/resources/nodes?${listQuery(params)}`,
+  ),
   createNode: (body: Schemas['NodeCreate']) => request<ManagedNode>('/api/v1/resources/nodes', {
     method: 'POST', body: JSON.stringify(body),
   }),
@@ -170,7 +201,9 @@ export const api = {
   restoreNode: (id: string, version: number) => request<ManagedNode>(`/api/v1/resources/nodes/${id}/restore`, {
     method: 'POST', headers: versionHeader(version),
   }),
-  services: (includeArchived = false) => request<Schemas['ServicePage']>(`/api/v1/resources/services?include_archived=${includeArchived}`),
+  services: (params: ListParams) => request<Schemas['ServicePage']>(
+    `/api/v1/resources/services?${listQuery(params)}`,
+  ),
   createService: (body: Schemas['ServiceCreate']) => request<Service>('/api/v1/resources/services', {
     method: 'POST', body: JSON.stringify(body),
   }),
@@ -183,7 +216,9 @@ export const api = {
   restoreService: (id: string, version: number) => request<Service>(`/api/v1/resources/services/${id}/restore`, {
     method: 'POST', headers: versionHeader(version),
   }),
-  dependencies: (includeArchived = false) => request<Schemas['DependencyPage']>(`/api/v1/resources/dependencies?include_archived=${includeArchived}`),
+  dependencies: (params: ListParams) => request<Schemas['DependencyPage']>(
+    `/api/v1/resources/dependencies?${listQuery(params)}`,
+  ),
   createDependency: (body: Schemas['DependencyCreate']) => request<ServiceDependency>('/api/v1/resources/dependencies', {
     method: 'POST', body: JSON.stringify(body),
   }),
@@ -196,9 +231,12 @@ export const api = {
   restoreDependency: (id: number, version: number) => request<ServiceDependency>(`/api/v1/resources/dependencies/${id}/restore`, {
     method: 'POST', headers: versionHeader(version),
   }),
-  auditLogs: (filters?: Record<string, string>) => {
-    const query = new URLSearchParams(filters).toString()
-    return request<Schemas['AuditLogPage']>(`/api/v1/audit-logs${query ? `?${query}` : ''}`)
+  auditLogs: (params: AuditLogParams) => {
+    const query = listQuery(params)
+    for (const key of ['actor_id', 'action', 'target', 'created_from', 'created_to'] as const) {
+      if (params[key]) query.set(key, params[key])
+    }
+    return request<Schemas['AuditLogPage']>(`/api/v1/audit-logs?${query}`)
   },
 }
 
