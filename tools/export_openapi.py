@@ -25,8 +25,7 @@ def build_openapi_document() -> dict[str, Any]:
             secure_cookies=False,
         )
         document = app.openapi()
-        app.state.store.engine.dispose()
-        app.state.auth_manager.engine.dispose()
+        app.state.database.dispose()
         return document
 
 

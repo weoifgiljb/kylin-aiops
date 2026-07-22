@@ -50,6 +50,27 @@ def test_real_account_login_and_refresh_session(tmp_path: Path) -> None:
     assert refreshed.status_code == 200
 
 
+def test_database_mode_shares_one_session_factory(tmp_path: Path) -> None:
+    client = management_client(tmp_path)
+
+    assert client.app.state.auth_manager.sessions is client.app.state.database.sessions
+    assert client.app.state.store.engine is client.app.state.database.engine
+
+
+def test_human_jwt_skips_agent_credential_lookup(tmp_path: Path, monkeypatch) -> None:
+    client = management_client(tmp_path)
+    admin = login(client, "admin", "correct-horse-battery-staple")
+
+    def reject_agent_lookup(_: str) -> None:
+        pytest.fail("人类 JWT 不应查询 Agent 凭证表")
+
+    monkeypatch.setattr(client.app.state.auth_manager, "current_agent", reject_agent_lookup)
+
+    response = client.get("/api/v1/auth/me", headers=admin)
+
+    assert response.status_code == 200
+
+
 def test_admin_manages_users_and_operator_cannot_manage_resources(tmp_path: Path) -> None:
     client = management_client(tmp_path)
     admin = login(client, "admin", "correct-horse-battery-staple")

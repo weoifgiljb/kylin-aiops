@@ -13,10 +13,11 @@ from typing import Any, Literal
 import jwt
 from pwdlib import PasswordHash
 from pydantic import BaseModel
-from sqlalchemy import create_engine, func, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from .database import AgentCredentialRow, AuthSessionRow, UserRow
+from .persistence import Database
 
 Role = Literal["admin", "operator", "viewer", "agent"]
 HumanRole = Literal["admin", "operator", "viewer"]
@@ -85,11 +86,15 @@ class AuthManager:
     ACCESS_SECONDS = 30 * 60
     REFRESH_DAYS = 7
 
-    def __init__(self, database_url: str, jwt_secret: str, redis_client: Any | None = None) -> None:
+    def __init__(
+        self,
+        sessions: sessionmaker[Session],
+        jwt_secret: str,
+        redis_client: Any | None = None,
+    ) -> None:
         if len(jwt_secret.encode("utf-8")) < 32:
             raise ValueError("JWT_SECRET 至少需要 32 字节")
-        self.engine = create_engine(database_url)
-        self.sessions = sessionmaker(self.engine, expire_on_commit=False)
+        self.sessions = sessions
         self.jwt_secret = jwt_secret
         self.passwords = PasswordHash.recommended()
         self.limiter = LoginRateLimiter(redis_client)
@@ -247,6 +252,16 @@ class AuthManager:
                 return None
             return AuthUser(id=f"agent:{row.node_id}", role="agent")
 
+    def authenticate_bearer(self, token: str) -> AuthUser:
+        """JWT 直接校验用户，非 JWT 才查询 Agent 凭证，避免无效数据库查询。"""
+
+        if token.count(".") == 2:
+            return self.current_user(token)
+        agent = self.current_agent(token)
+        if agent is None:
+            raise ApiProblem(401, "INVALID_TOKEN", "访问令牌无效")
+        return agent
+
     def active_admin_count(self, session: Session) -> int:
         return int(
             session.scalar(
@@ -269,26 +284,29 @@ def _as_utc(value: datetime) -> datetime:
 def seed_admin(database_url: str, username: str, password: str, display_name: str) -> str:
     """创建首个管理员；重复用户名会被明确拒绝，避免静默覆盖密码。"""
 
-    engine = create_engine(database_url)
-    now = datetime.now(UTC)
-    with Session(engine) as session:
-        if session.scalar(select(UserRow).where(UserRow.username == username)) is not None:
-            raise ValueError("管理员用户名已存在")
-        user_id = str(uuid.uuid4())
-        session.add(
-            UserRow(
-                id=user_id,
-                username=username,
-                display_name=display_name,
-                password_hash=PasswordHash.recommended().hash(password),
-                role="admin",
-                is_active=True,
-                version=1,
-                created_at=now,
-                updated_at=now,
-                archived_at=None,
-                archived_by=None,
+    database = Database(database_url)
+    try:
+        now = datetime.now(UTC)
+        with database.sessions() as session:
+            if session.scalar(select(UserRow).where(UserRow.username == username)) is not None:
+                raise ValueError("管理员用户名已存在")
+            user_id = str(uuid.uuid4())
+            session.add(
+                UserRow(
+                    id=user_id,
+                    username=username,
+                    display_name=display_name,
+                    password_hash=PasswordHash.recommended().hash(password),
+                    role="admin",
+                    is_active=True,
+                    version=1,
+                    created_at=now,
+                    updated_at=now,
+                    archived_at=None,
+                    archived_by=None,
+                )
             )
-        )
-        session.commit()
-        return user_id
+            session.commit()
+            return user_id
+    finally:
+        database.dispose()

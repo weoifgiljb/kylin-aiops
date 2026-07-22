@@ -8,6 +8,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import create_engine, select
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
 from .actions import ActionRequest, ActionStatus
@@ -32,6 +33,7 @@ class InMemoryStore:
         seed_demo: bool = False,
         action_queue: ActionQueue | None = None,
         database_url: str | None = None,
+        engine: Engine | None = None,
     ) -> None:
         self.nodes: dict[str, dict[str, Any]] = {}
         self.incidents: dict[str, dict[str, Any]] = {}
@@ -42,7 +44,7 @@ class InMemoryStore:
         self.telemetry: dict[str, dict[str, Any]] = {}
         self.alert_incidents: dict[str, str] = {}
         self.audit_logs: list[dict[str, Any]] = []
-        self.engine = create_engine(database_url) if database_url else None
+        self.engine = engine or (create_engine(database_url) if database_url else None)
         if self.engine:
             self._load_database()
         if seed_demo and not self.nodes:

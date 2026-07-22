@@ -26,6 +26,7 @@ from .actions import ActionSigner, ApprovalError, create_action_request
 from .auth import ApiProblem, AuthManager, Role
 from .auth import AuthUser as User
 from .management import register_management_routes
+from .persistence import Database
 from .queue import RedisStreamActionQueue
 from .status import RuntimeStatusProbe, SystemStatus
 from .store import InMemoryStore
@@ -195,16 +196,18 @@ def create_app(
         cookie_secure,
     )
     queue = RedisStreamActionQueue.from_url(redis_url) if redis_url else None
+    database = Database(configured_database_url) if configured_database_url else None
+    app.state.database = database
     app.state.store = InMemoryStore(
         seed_demo=seed_demo,
         action_queue=queue,
-        database_url=configured_database_url,
+        engine=database.engine if database else None,
     )
     app.state.auth_manager = None
-    if configured_database_url:
+    if database is not None:
         redis_client = Redis.from_url(redis_url, decode_responses=True) if redis_url else None
         app.state.auth_manager = AuthManager(
-            configured_database_url,
+            database.sessions,
             configured_secret,
             redis_client=redis_client,
         )
@@ -283,10 +286,7 @@ def create_app(
             return User(id="agent:bootstrap", role="agent")
         manager: AuthManager | None = request.app.state.auth_manager
         if manager is not None:
-            agent = manager.current_agent(token)
-            if agent is not None:
-                return agent
-            return manager.current_user(token)
+            return manager.authenticate_bearer(token)
         user = TOKENS.get(token)
         if user is None:
             raise ApiProblem(401, "INVALID_TOKEN", "Bearer token is invalid")
