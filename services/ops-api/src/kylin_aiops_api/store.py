@@ -112,6 +112,15 @@ class InMemoryStore:
             for source, target in (("nginx", "java"), ("java", "mysql"))
             if source in service_nodes and target in service_nodes
         ]
+        topology_groups: dict[tuple[str, str], int] = {}
+        for node in self.nodes.values():
+            key = (str(node.get("service") or "unassigned"), node["status"])
+            topology_groups[key] = topology_groups.get(key, 0) + 1
+        topology_group_edges: dict[tuple[str, str], list[float]] = {}
+        for source, target in (("nginx", "java"), ("java", "mysql")):
+            if source in service_nodes and target in service_nodes:
+                values = topology_group_edges.setdefault((source, target), [])
+                values.append(1.0)
         return {
             "online_nodes": sum(node["status"] == "online" for node in self.nodes.values()),
             "total_nodes": len(self.nodes),
@@ -127,6 +136,24 @@ class InMemoryStore:
             ),
             "nodes": nodes,
             "topology": topology,
+            "topology_groups": [
+                {
+                    "id": f"{service}:{status}",
+                    "service": service,
+                    "status": status,
+                    "count": count,
+                }
+                for (service, status), count in topology_groups.items()
+            ],
+            "topology_group_edges": [
+                {
+                    "source_service": source,
+                    "target_service": target,
+                    "count": len(confidences),
+                    "confidence": sum(confidences) / len(confidences),
+                }
+                for (source, target), confidences in topology_group_edges.items()
+            ],
         }
 
     def get_incident(self, incident_id: str) -> dict[str, Any] | None:

@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import Session, aliased, sessionmaker
 
 from .actions import ActionRequest, ActionStatus
 from .database import (
@@ -68,61 +68,139 @@ class SqlControlPlaneStore:
         now = datetime.now(UTC)
         today = datetime(now.year, now.month, now.day, tzinfo=UTC)
         with self.sessions() as session:
-            node_rows = list(
-                session.scalars(
-                    select(NodeRow).where(NodeRow.archived_at.is_(None)).order_by(NodeRow.id)
+            total_nodes = int(
+                session.scalar(
+                    select(func.count())
+                    .select_from(NodeRow)
+                    .where(NodeRow.archived_at.is_(None))
                 )
+                or 0
             )
-            service_rows = list(
-                session.scalars(select(ServiceRow).where(ServiceRow.archived_at.is_(None)))
+            online_nodes = int(
+                session.scalar(
+                    select(func.count())
+                    .select_from(NodeRow)
+                    .where(NodeRow.archived_at.is_(None), NodeRow.status == "online")
+                )
+                or 0
             )
-            telemetry_rows = (
-                list(
+            topology_groups = [
+                {
+                    "id": f"{service}:{status}",
+                    "service": service,
+                    "status": status,
+                    "count": int(count),
+                }
+                for service, status, count in session.execute(
+                    select(
+                        ServiceRow.service_type,
+                        NodeRow.status,
+                        func.count(NodeRow.id),
+                    )
+                    .join(NodeRow, ServiceRow.node_id == NodeRow.id)
+                    .where(
+                        ServiceRow.archived_at.is_(None),
+                        NodeRow.archived_at.is_(None),
+                    )
+                    .group_by(ServiceRow.service_type, NodeRow.status)
+                    .order_by(ServiceRow.service_type, NodeRow.status)
+                )
+            ]
+            source_service = aliased(ServiceRow)
+            target_service = aliased(ServiceRow)
+            topology_group_edges = [
+                {
+                    "source_service": source,
+                    "target_service": target,
+                    "count": int(count),
+                    "confidence": float(confidence),
+                }
+                for source, target, count, confidence in session.execute(
+                    select(
+                        source_service.service_type,
+                        target_service.service_type,
+                        func.count(DependencyEdgeRow.id),
+                        func.avg(DependencyEdgeRow.confidence),
+                    )
+                    .join(
+                        source_service,
+                        DependencyEdgeRow.source_service_id == source_service.id,
+                    )
+                    .join(
+                        target_service,
+                        DependencyEdgeRow.target_service_id == target_service.id,
+                    )
+                    .where(
+                        DependencyEdgeRow.archived_at.is_(None),
+                        source_service.archived_at.is_(None),
+                        target_service.archived_at.is_(None),
+                    )
+                    .group_by(source_service.service_type, target_service.service_type)
+                    .order_by(source_service.service_type, target_service.service_type)
+                )
+            ]
+            nodes: list[dict[str, Any]] = []
+            topology: list[dict[str, Any]] = []
+            if total_nodes <= 200:
+                node_rows = list(
                     session.scalars(
-                        select(TelemetrySnapshotRow).where(
-                            TelemetrySnapshotRow.node_id.in_([row.id for row in node_rows])
+                        select(NodeRow)
+                        .where(NodeRow.archived_at.is_(None))
+                        .order_by(NodeRow.id)
+                    )
+                )
+                service_rows = list(
+                    session.scalars(
+                        select(ServiceRow).where(ServiceRow.archived_at.is_(None))
+                    )
+                )
+                telemetry_rows = (
+                    list(
+                        session.scalars(
+                            select(TelemetrySnapshotRow).where(
+                                TelemetrySnapshotRow.node_id.in_([row.id for row in node_rows])
+                            )
+                        )
+                    )
+                    if node_rows
+                    else []
+                )
+                service_by_node = {row.node_id: row.service_type for row in service_rows}
+                service_by_id = {row.id: row for row in service_rows}
+                telemetry_by_node = {row.node_id: row.metrics for row in telemetry_rows}
+                dependency_rows = list(
+                    session.scalars(
+                        select(DependencyEdgeRow).where(
+                            DependencyEdgeRow.archived_at.is_(None)
                         )
                     )
                 )
-                if node_rows
-                else []
-            )
-            service_by_node = {row.node_id: row.service_type for row in service_rows}
-            service_by_id = {row.id: row for row in service_rows}
-            telemetry_by_node = {row.node_id: row.metrics for row in telemetry_rows}
-            dependency_rows = list(
-                session.scalars(
-                    select(DependencyEdgeRow).where(DependencyEdgeRow.archived_at.is_(None))
-                )
-            )
-            nodes = [
-                {
-                    "id": row.id,
-                    "hostname": row.hostname or row.id,
-                    "status": row.status,
-                    "service": service_by_node.get(row.id),
-                    "architecture": row.architecture,
-                    "kylin_version": row.kylin_version,
-                    "last_seen_at": row.last_seen_at.isoformat() if row.last_seen_at else None,
-                    "metrics": telemetry_by_node.get(row.id, {}),
-                }
-                for row in node_rows
-            ]
-            topology = []
-            for edge in dependency_rows:
-                source = service_by_id.get(edge.source_service_id)
-                target = service_by_id.get(edge.target_service_id)
-                if source is not None and target is not None:
-                    topology.append(
-                        {
-                            "source": source.node_id,
-                            "target": target.node_id,
-                            "confidence": edge.confidence,
-                        }
-                    )
+                nodes = [
+                    {
+                        "id": row.id,
+                        "hostname": row.hostname or row.id,
+                        "status": row.status,
+                        "service": service_by_node.get(row.id),
+                        "architecture": row.architecture,
+                        "kylin_version": row.kylin_version,
+                        "last_seen_at": row.last_seen_at.isoformat() if row.last_seen_at else None,
+                        "metrics": telemetry_by_node.get(row.id, {}),
+                    }
+                    for row in node_rows
+                ]
+                topology = [
+                    {
+                        "source": source.node_id,
+                        "target": target.node_id,
+                        "confidence": edge.confidence,
+                    }
+                    for edge in dependency_rows
+                    if (source := service_by_id.get(edge.source_service_id)) is not None
+                    and (target := service_by_id.get(edge.target_service_id)) is not None
+                ]
             return {
-                "online_nodes": sum(row.status == "online" for row in node_rows),
-                "total_nodes": len(node_rows),
+                "online_nodes": online_nodes,
+                "total_nodes": total_nodes,
                 "active_incidents": int(
                     session.scalar(
                         select(func.count())
@@ -152,6 +230,8 @@ class SqlControlPlaneStore:
                 ),
                 "nodes": nodes,
                 "topology": topology,
+                "topology_groups": topology_groups,
+                "topology_group_edges": topology_group_edges,
             }
 
     def receive_alerts(self, payload: AlertWebhook) -> dict[str, Any]:

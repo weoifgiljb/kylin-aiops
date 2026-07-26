@@ -6,8 +6,10 @@ from kylin_aiops_api.database import (
     ActionExecutionRow,
     ActionRequestRow,
     Base,
+    DependencyEdgeRow,
     IncidentRow,
     NodeRow,
+    ServiceRow,
     TelemetrySnapshotRow,
 )
 from kylin_aiops_api.persistence import Database
@@ -128,3 +130,101 @@ def test_action_lifecycle_writes_only_target_rows(sql_store) -> None:
         execution = session.get(ActionExecutionRow, f"exec-{action.id}")
         assert request_row is not None and request_row.status == "executed"
         assert execution is not None and execution.health_check_passed is True
+
+
+def test_overview_aggregates_large_sqlite_topology_without_physical_nodes(sql_store) -> None:
+    store, sessions = sql_store
+    now = datetime.now(UTC)
+    nodes = []
+    services = []
+    for index in range(240):
+        service_type = "nginx" if index < 180 else "mysql"
+        status = "offline" if 120 <= index < 180 else "online"
+        node_id = f"node-{index:03d}"
+        nodes.append(
+            NodeRow(
+                id=node_id,
+                hostname=node_id,
+                architecture="aarch64",
+                kylin_version="V10",
+                status=status,
+                last_seen_at=now,
+                display_name=node_id,
+                description="",
+                tags=[],
+                enabled=True,
+                version=1,
+                archived_at=None,
+                archived_by=None,
+            )
+        )
+        services.append(
+            ServiceRow(
+                id=f"svc-{index:03d}",
+                node_id=node_id,
+                name=service_type,
+                service_type=service_type,
+                status=status,
+                description="",
+                enabled=True,
+                version=1,
+                archived_at=None,
+                archived_by=None,
+            )
+        )
+    with sessions() as session:
+        session.add_all(nodes)
+        session.add_all(services)
+        session.flush()
+        session.add_all(
+            [
+                DependencyEdgeRow(
+                    source_service_id=f"svc-{index:03d}",
+                    target_service_id=f"svc-{180 + index % 60:03d}",
+                    source="observed",
+                    confidence=0.75,
+                    observed_at=now,
+                    version=1,
+                    archived_at=None,
+                    archived_by=None,
+                )
+                for index in range(120)
+            ]
+            + [
+                DependencyEdgeRow(
+                    source_service_id=f"svc-{180 + index:03d}",
+                    target_service_id=f"svc-{index:03d}",
+                    source="observed",
+                    confidence=0.9,
+                    observed_at=now,
+                    version=1,
+                    archived_at=None,
+                    archived_by=None,
+                )
+                for index in range(60)
+            ]
+        )
+        session.commit()
+
+    overview = store.overview()
+
+    assert overview["nodes"] == []
+    assert overview["topology"] == []
+    assert overview["total_nodes"] == 240
+    assert overview["online_nodes"] == 180
+    assert {
+        (group["service"], group["status"]): group["count"]
+        for group in overview["topology_groups"]
+    } == {
+        ("nginx", "online"): 120,
+        ("nginx", "offline"): 60,
+        ("mysql", "online"): 60,
+    }
+    grouped_edges = {
+        (edge["source_service"], edge["target_service"]): edge
+        for edge in overview["topology_group_edges"]
+    }
+    assert grouped_edges[("nginx", "mysql")]["count"] == 120
+    assert grouped_edges[("nginx", "mysql")]["confidence"] == pytest.approx(0.75)
+    assert grouped_edges[("mysql", "nginx")]["count"] == 60
+    assert grouped_edges[("mysql", "nginx")]["confidence"] == pytest.approx(0.9)

@@ -24,6 +24,15 @@ def test_overview_and_incident_detail_are_evidence_backed() -> None:
     assert overview.status_code == 200
     assert overview.json()["online_nodes"] == 3
     assert overview.json()["active_incidents"] == 1
+    assert overview.json()["topology_groups"] == [
+        {"id": "nginx:online", "service": "nginx", "status": "online", "count": 1},
+        {"id": "java:online", "service": "java", "status": "online", "count": 1},
+        {"id": "mysql:online", "service": "mysql", "status": "online", "count": 1},
+    ]
+    assert overview.json()["topology_group_edges"] == [
+        {"source_service": "nginx", "target_service": "java", "count": 1, "confidence": 1.0},
+        {"source_service": "java", "target_service": "mysql", "count": 1, "confidence": 1.0},
+    ]
     assert detail.status_code == 200
     assert detail.json()["diagnosis"]["root_cause"] == "db-01"
     assert detail.json()["diagnosis"]["evidence_refs"] == ["ev-db-connections", "ev-db-log"]
@@ -42,6 +51,8 @@ def test_overview_without_demo_seed_contains_no_fabricated_data() -> None:
         "pending_actions": 0,
         "nodes": [],
         "topology": [],
+        "topology_groups": [],
+        "topology_group_edges": [],
     }
 
 

@@ -149,6 +149,20 @@ class TopologyEdgeResponse(BaseModel):
     confidence: float
 
 
+class TopologyGroupResponse(BaseModel):
+    id: str
+    service: str
+    status: str
+    count: int
+
+
+class TopologyGroupEdgeResponse(BaseModel):
+    source_service: str
+    target_service: str
+    count: int
+    confidence: float
+
+
 class OverviewResponse(BaseModel):
     online_nodes: int
     total_nodes: int
@@ -157,6 +171,8 @@ class OverviewResponse(BaseModel):
     pending_actions: int
     nodes: list[OverviewNodeResponse]
     topology: list[TopologyEdgeResponse]
+    topology_groups: list[TopologyGroupResponse]
+    topology_group_edges: list[TopologyGroupEdgeResponse]
 
 
 class ActionResponse(BaseModel):
