@@ -1,11 +1,16 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useNavigate } from 'react-router-dom'
 import { vi } from 'vitest'
 
 import { api } from '../../api/client'
 import ResourcesPage from './ResourcesPage'
+
+function UrlChangeControl() {
+  const navigate = useNavigate()
+  return <button onClick={() => navigate('/management/resources?tab=nodes&service_type=nginx&status=online')}>切换到节点</button>
+}
 
 vi.mock('../../api/client', () => ({
   api: {
@@ -71,4 +76,25 @@ test('uses node filters from the URL and clears them without affecting other tab
     pageSize: 20,
     includeArchived: false,
   }))
+})
+
+test('reacts to an external URL tab change and only then requests filtered nodes', async () => {
+  const user = userEvent.setup()
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  vi.clearAllMocks()
+  render(<MemoryRouter initialEntries={['/management/resources?tab=services&service_type=nginx&status=online']}><UrlChangeControl /><QueryClientProvider client={client}><ResourcesPage /></QueryClientProvider></MemoryRouter>)
+
+  await screen.findByText('服务')
+  expect(api.nodes).not.toHaveBeenCalled()
+  expect(api.services).toHaveBeenCalled()
+
+  await user.click(screen.getByRole('button', { name: '切换到节点' }))
+
+  await waitFor(() => expect(api.nodes).toHaveBeenLastCalledWith(expect.objectContaining({
+    page: 1,
+    pageSize: 20,
+    status: 'online',
+    service_type: 'nginx',
+  })))
+  expect(screen.getByText('当前筛选：服务类型 nginx，状态 online')).toBeInTheDocument()
 })

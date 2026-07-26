@@ -9,14 +9,17 @@ import { parseTags } from './resourceForm'
 
 type ResourceKind = 'node' | 'service' | 'dependency'
 
+function resourceKindFromTab(tab: string | null): ResourceKind {
+  if (tab === 'services' || tab === 'service') return 'service'
+  if (tab === 'dependencies' || tab === 'dependency') return 'dependency'
+  return 'node'
+}
+
 export default function ResourcesPage() {
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
   const [includeArchived, setIncludeArchived] = useState(false)
-  const [activeKind, setActiveKind] = useState<ResourceKind>(() => {
-    const tab = searchParams.get('tab')
-    return tab === 'services' ? 'service' : tab === 'dependencies' ? 'dependency' : 'node'
-  })
+  const activeKind = resourceKindFromTab(searchParams.get('tab'))
   const [pages, setPages] = useState<Record<ResourceKind, { page: number; pageSize: number }>>({
     node: { page: 1, pageSize: 20 },
     service: { page: 1, pageSize: 20 },
@@ -74,7 +77,6 @@ export default function ResourcesPage() {
     const next = new URLSearchParams(searchParams)
     next.set('tab', kind === 'node' ? 'nodes' : kind === 'service' ? 'services' : 'dependencies')
     setSearchParams(next)
-    setActiveKind(kind)
   }
 
   const showError = (error: unknown) => void message.error(
