@@ -228,3 +228,78 @@ def test_overview_aggregates_large_sqlite_topology_without_physical_nodes(sql_st
     assert grouped_edges[("nginx", "mysql")]["confidence"] == pytest.approx(0.75)
     assert grouped_edges[("mysql", "nginx")]["count"] == 60
     assert grouped_edges[("mysql", "nginx")]["confidence"] == pytest.approx(0.9)
+
+
+def test_overview_groups_unassigned_nodes_and_deduplicates_service_rows(sql_store) -> None:
+    store, sessions = sql_store
+    now = datetime.now(UTC)
+    with sessions() as session:
+        session.add_all(
+            [
+                NodeRow(
+                    id="node-with-services",
+                    hostname="node-with-services",
+                    architecture="aarch64",
+                    kylin_version="V10",
+                    status="online",
+                    last_seen_at=now,
+                    display_name="node-with-services",
+                    description="",
+                    tags=[],
+                    enabled=True,
+                    version=1,
+                    archived_at=None,
+                    archived_by=None,
+                ),
+                NodeRow(
+                    id="node-without-service",
+                    hostname="node-without-service",
+                    architecture="aarch64",
+                    kylin_version="V10",
+                    status="offline",
+                    last_seen_at=now,
+                    display_name="node-without-service",
+                    description="",
+                    tags=[],
+                    enabled=True,
+                    version=1,
+                    archived_at=None,
+                    archived_by=None,
+                ),
+                ServiceRow(
+                    id="nginx-primary",
+                    node_id="node-with-services",
+                    name="nginx-primary",
+                    service_type="nginx",
+                    status="online",
+                    description="",
+                    enabled=True,
+                    version=1,
+                    archived_at=None,
+                    archived_by=None,
+                ),
+                ServiceRow(
+                    id="nginx-sidecar",
+                    node_id="node-with-services",
+                    name="nginx-sidecar",
+                    service_type="nginx",
+                    status="online",
+                    description="",
+                    enabled=True,
+                    version=1,
+                    archived_at=None,
+                    archived_by=None,
+                ),
+            ]
+        )
+        session.commit()
+
+    overview = store.overview()
+
+    assert {
+        (group["service"], group["status"]): group["count"]
+        for group in overview["topology_groups"]
+    } == {
+        ("nginx", "online"): 1,
+        ("unassigned", "offline"): 1,
+    }

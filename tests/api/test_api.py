@@ -2,9 +2,12 @@ from datetime import UTC, datetime, timedelta
 
 import httpx
 from fastapi.testclient import TestClient
+from kylin_aiops_api.auth import seed_admin
+from kylin_aiops_api.database import Base, NodeRow
 from kylin_aiops_api.main import app as default_app
 from kylin_aiops_api.main import create_app
 from kylin_aiops_diagnosis.mindie import MindIEOutput
+from sqlalchemy import create_engine
 
 
 def client() -> TestClient:
@@ -38,6 +41,15 @@ def test_overview_and_incident_detail_are_evidence_backed() -> None:
     assert detail.json()["diagnosis"]["evidence_refs"] == ["ev-db-connections", "ev-db-log"]
 
 
+def test_demo_topology_group_edges_preserve_fixed_edge_aggregation() -> None:
+    overview = client().get("/api/v1/overview", headers=auth("viewer")).json()
+
+    assert overview["topology_group_edges"] == [
+        {"source_service": "nginx", "target_service": "java", "count": 1, "confidence": 1.0},
+        {"source_service": "java", "target_service": "mysql", "count": 1, "confidence": 1.0},
+    ]
+
+
 def test_overview_without_demo_seed_contains_no_fabricated_data() -> None:
     api = TestClient(create_app(seed_demo=False))
 
@@ -54,6 +66,54 @@ def test_overview_without_demo_seed_contains_no_fabricated_data() -> None:
         "topology_groups": [],
         "topology_group_edges": [],
     }
+
+
+def test_database_overview_serializes_unassigned_aggregation(tmp_path) -> None:
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'overview.db'}"
+    engine = create_engine(database_url)
+    Base.metadata.create_all(engine)
+    engine.dispose()
+    seed_admin(database_url, "admin", "correct-horse-battery-staple", "admin")
+    app = create_app(
+        database_url=database_url,
+        jwt_secret="test-jwt-secret-that-is-at-least-32-bytes",
+        secure_cookies=False,
+    )
+    with app.state.store.sessions() as session:
+        session.add(
+            NodeRow(
+                id="unassigned-node",
+                hostname="unassigned-node",
+                architecture="aarch64",
+                kylin_version="V10",
+                status="online",
+                last_seen_at=datetime.now(UTC),
+                display_name="unassigned-node",
+                description="",
+                tags=[],
+                enabled=True,
+                version=1,
+                archived_at=None,
+                archived_by=None,
+            )
+        )
+        session.commit()
+
+    with TestClient(app) as api:
+        token = api.post(
+            "/api/v1/auth/token",
+            data={"username": "admin", "password": "correct-horse-battery-staple"},
+        ).json()["access_token"]
+        response = api.get(
+            "/api/v1/overview",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["topology_groups"] == [
+        {"id": "unassigned:online", "service": "unassigned", "status": "online", "count": 1}
+    ]
+    assert response.json()["topology_group_edges"] == []
 
 
 def test_default_application_starts_in_live_mode() -> None:

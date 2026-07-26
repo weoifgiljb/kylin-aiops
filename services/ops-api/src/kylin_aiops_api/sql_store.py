@@ -5,7 +5,7 @@ from dataclasses import asdict
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session, aliased, sessionmaker
 
 from .actions import ActionRequest, ActionStatus
@@ -84,6 +84,7 @@ class SqlControlPlaneStore:
                 )
                 or 0
             )
+            group_service = func.coalesce(ServiceRow.service_type, "unassigned")
             topology_groups = [
                 {
                     "id": f"{service}:{status}",
@@ -93,17 +94,21 @@ class SqlControlPlaneStore:
                 }
                 for service, status, count in session.execute(
                     select(
-                        ServiceRow.service_type,
+                        group_service,
                         NodeRow.status,
-                        func.count(NodeRow.id),
+                        func.count(func.distinct(NodeRow.id)),
                     )
-                    .join(NodeRow, ServiceRow.node_id == NodeRow.id)
-                    .where(
-                        ServiceRow.archived_at.is_(None),
-                        NodeRow.archived_at.is_(None),
+                    .select_from(NodeRow)
+                    .outerjoin(
+                        ServiceRow,
+                        and_(
+                            ServiceRow.node_id == NodeRow.id,
+                            ServiceRow.archived_at.is_(None),
+                        ),
                     )
-                    .group_by(ServiceRow.service_type, NodeRow.status)
-                    .order_by(ServiceRow.service_type, NodeRow.status)
+                    .where(NodeRow.archived_at.is_(None))
+                    .group_by(group_service, NodeRow.status)
+                    .order_by(group_service, NodeRow.status)
                 )
             ]
             source_service = aliased(ServiceRow)
