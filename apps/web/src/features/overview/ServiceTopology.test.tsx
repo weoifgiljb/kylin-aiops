@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
+import { vi } from 'vitest'
 
 import { ServiceTopology } from './ServiceTopology'
 
@@ -48,4 +49,31 @@ test('renders live metrics reported by an enrolled agent', () => {
 
   expect(screen.getByText('local-dev-01')).toBeInTheDocument()
   expect(screen.getByText('CPU 12.5% · 内存 34.5%')).toBeInTheDocument()
+})
+
+test('聚合拓扑仅渲染服务状态摘要，并将点击条件交给调用方', () => {
+  const onSelectGroup = vi.fn()
+
+  render(
+    <ServiceTopology
+      nodes={[
+        { id: 'physical-node', hostname: 'physical-node', status: 'online', service: 'nginx' },
+      ]}
+      topology={[]}
+      topologyGroups={[
+        { id: 'nginx:online', service: 'nginx', status: 'online', count: 6667 },
+        { id: 'java:offline', service: 'java', status: 'offline', count: 3 },
+      ]}
+      topologyGroupEdges={[
+        { source_service: 'nginx', target_service: 'java', count: 8, confidence: 0.92 },
+      ]}
+      onSelectGroup={onSelectGroup}
+    />,
+  )
+
+  fireEvent.click(screen.getByLabelText(/Nginx.*在线.*6,667/, { selector: 'button' }))
+
+  expect(onSelectGroup).toHaveBeenCalledWith({ service: 'nginx', status: 'online' })
+  expect(screen.getByText('Java 服务')).toBeInTheDocument()
+  expect(screen.queryByText('physical-node')).not.toBeInTheDocument()
 })

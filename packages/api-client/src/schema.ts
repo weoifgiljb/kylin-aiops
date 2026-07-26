@@ -790,6 +790,8 @@ export interface components {
             pending_actions: number;
             nodes: components["schemas"]["OverviewNodeResponse"][];
             topology: components["schemas"]["TopologyEdgeResponse"][];
+            topology_groups: components["schemas"]["TopologyGroupResponse"][];
+            topology_group_edges: components["schemas"]["TopologyGroupEdgeResponse"][];
         };
         PasswordReset: {
             password: string;
@@ -843,6 +845,18 @@ export interface components {
             source: string;
             target: string;
             confidence: number;
+        };
+        TopologyGroupEdgeResponse: {
+            source_service: string;
+            target_service: string;
+            count: number;
+            confidence: number;
+        };
+        TopologyGroupResponse: {
+            id: string;
+            service: string;
+            status: string;
+            count: number;
         };
         UserCreate: {
             username: string;
@@ -1199,6 +1213,8 @@ export interface operations {
                 page?: number;
                 page_size?: number;
                 q?: string | null;
+                status?: string | null;
+                service_type?: string | null;
                 include_archived?: boolean;
             };
             header?: never;
@@ -1679,6 +1695,10 @@ export interface operations {
                 page_size?: number;
                 status?: string | null;
                 source?: string | null;
+                severity?: string | null;
+                q?: string | null;
+                started_from?: string | null;
+                started_to?: string | null;
                 include_archived?: boolean;
             };
             header?: never;

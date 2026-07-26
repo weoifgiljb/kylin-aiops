@@ -1,6 +1,7 @@
 import { useMutation, useQueries } from '@tanstack/react-query'
 import { App, Card, Col, Row, Skeleton, Statistic } from 'antd'
 import { useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 import { api } from '../../api/client'
 import type { Incident } from '../../api/types'
@@ -12,6 +13,7 @@ import { actionParameters } from './actionParameters'
 
 export default function OverviewPage() {
   const { message } = App.useApp()
+  const navigate = useNavigate()
   const selectedIncidentId = useUiStore((state) => state.selectedIncidentId)
   const setSelectedIncidentId = useUiStore((state) => state.setSelectedIncidentId)
   const [overviewQuery, incidentsQuery] = useQueries({ queries: [
@@ -48,7 +50,17 @@ export default function OverviewPage() {
         <Col xs={12} xl={6}><Card><Statistic title="今日告警" value={overview.today_alerts} styles={{ content: { color: '#dc2626' } }} /></Card></Col>
         <Col xs={12} xl={6}><Card><Statistic title="待审批动作" value={overview.pending_actions} styles={{ content: { color: '#2563eb' } }} /></Card></Col>
       </Row>
-      <ServiceTopology nodes={overview.nodes} topology={overview.topology} rootNode={selected?.root_node ?? undefined} propagationPath={selected?.diagnosis.propagation_path} />
+      <ServiceTopology
+        nodes={overview.nodes}
+        topology={overview.topology}
+        topologyGroups={overview.topology_groups}
+        topologyGroupEdges={overview.topology_group_edges}
+        rootNode={selected?.root_node ?? undefined}
+        propagationPath={selected?.diagnosis.propagation_path}
+        onSelectGroup={({ service, status }) => navigate(
+          `/management/resources?tab=nodes&service_type=${encodeURIComponent(service)}&status=${encodeURIComponent(status)}`,
+        )}
+      />
       <section className="incident-table-panel"><div className="section-heading"><div><span>实时事件</span><h2>事件列表</h2></div></div><IncidentTable incidents={incidents} selectedId={selected?.id} onSelect={(item) => setSelectedIncidentId(item.id)} /></section>
     </main>
     {selected ? <IncidentInspector incident={selected} onApprove={() => approve.mutate(selected)} /> : <aside className="incident-inspector">暂无事件</aside>}

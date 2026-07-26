@@ -26,6 +26,8 @@ body { margin: 0; min-width: 320px; min-height: 100vh; }
 .legend-item { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 .legend-item i { width: 8px; height: 8px; border-radius: 50%; }
 .topology-canvas { height: 340px; }
+.topology-empty { height: 100%; display: grid; place-items: center; }
+.topology-hint { color: #627d98; font-size: 12px; }
 .flow-node { width: 190px !important; border-width: 1px !important; border-style: solid !important; border-radius: 7px !important; box-shadow: 0 5px 16px rgb(16 42 67 / 10%) !important; }
 .flow-node-root { box-shadow: 0 0 0 3px rgb(239 68 68 / 10%) !important; }
 .flow-node-propagating { box-shadow: 0 0 0 3px rgb(245 158 11 / 9%) !important; }
@@ -33,6 +35,14 @@ body { margin: 0; min-width: 320px; min-height: 100vh; }
 .topology-node strong { font-size: 16px; }
 .topology-node small { color: #627d98; }
 .topology-node span { color: #15803d; font-size: 12px; }
+.flow-node-group { width: 214px !important; background: #fff !important; }
+.flow-node-group.flow-node-offline { background: #f8fafc !important; }
+.topology-group-button { width: 100%; padding: 12px; border: 0; background: transparent; color: #102a43; display: grid; gap: 5px; text-align: left; cursor: pointer; font: inherit; }
+.topology-group-button:hover, .topology-group-button:focus-visible { background: #f0f6ff; outline: 2px solid #1769e0; outline-offset: -2px; }
+.topology-group-button strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; }
+.topology-group-button span { color: #15803d; font-size: 12px; }
+.flow-node-offline .topology-group-button span { color: #64748b; }
+.topology-group-button small { color: #486581; font-size: 13px; }
 .incident-table-panel { overflow: hidden; }
 .selected-row td { background: #eaf3ff !important; }
 .incident-inspector { position: sticky; top: 20px; min-height: calc(100vh - 112px); padding: 20px; }
@@ -64,4 +74,4 @@ body { margin: 0; min-width: 320px; min-height: 100vh; }
 .login-card .ant-alert { margin: 18px 0; }
 .login-brand { display: flex; }
 @media (max-width: 1180px) { .dashboard-grid { grid-template-columns: 1fr; } .incident-inspector { position: static; min-height: auto; } }
-@media (max-width: 640px) { .app-content { padding: 12px; } .app-header { padding: 0 16px; } .app-header h3 { font-size: 17px; } .operator { display: none; } .inspector-actions { grid-template-columns: 1fr; } }
+@media (max-width: 640px) { .app-content { padding: 12px; } .app-header { padding: 0 16px; } .app-header h3 { font-size: 17px; } .operator { display: none; } .inspector-actions { grid-template-columns: 1fr; } .topology-canvas { height: 430px; } .flow-node-group { width: 176px !important; } .topology-hint { display: none; } }

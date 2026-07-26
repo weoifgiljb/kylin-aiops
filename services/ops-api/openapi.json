@@ -588,6 +588,38 @@
             }
           },
           {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "service_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Service Type"
+            }
+          },
+          {
             "name": "include_archived",
             "in": "query",
             "required": false,
@@ -1524,6 +1556,72 @@
                 }
               ],
               "title": "Source"
+            }
+          },
+          {
+            "name": "severity",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Severity"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "name": "started_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Started From"
+            }
+          },
+          {
+            "name": "started_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Started To"
             }
           },
           {
@@ -3918,6 +4016,20 @@
             },
             "type": "array",
             "title": "Topology"
+          },
+          "topology_groups": {
+            "items": {
+              "$ref": "#/components/schemas/TopologyGroupResponse"
+            },
+            "type": "array",
+            "title": "Topology Groups"
+          },
+          "topology_group_edges": {
+            "items": {
+              "$ref": "#/components/schemas/TopologyGroupEdgeResponse"
+            },
+            "type": "array",
+            "title": "Topology Group Edges"
           }
         },
         "type": "object",
@@ -3928,7 +4040,9 @@
           "today_alerts",
           "pending_actions",
           "nodes",
-          "topology"
+          "topology",
+          "topology_groups",
+          "topology_group_edges"
         ],
         "title": "OverviewResponse"
       },
@@ -4223,6 +4337,62 @@
           "confidence"
         ],
         "title": "TopologyEdgeResponse"
+      },
+      "TopologyGroupEdgeResponse": {
+        "properties": {
+          "source_service": {
+            "type": "string",
+            "title": "Source Service"
+          },
+          "target_service": {
+            "type": "string",
+            "title": "Target Service"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source_service",
+          "target_service",
+          "count",
+          "confidence"
+        ],
+        "title": "TopologyGroupEdgeResponse"
+      },
+      "TopologyGroupResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "service": {
+            "type": "string",
+            "title": "Service"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "service",
+          "status",
+          "count"
+        ],
+        "title": "TopologyGroupResponse"
       },
       "UserCreate": {
         "properties": {
