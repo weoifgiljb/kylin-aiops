@@ -33,7 +33,7 @@ _START_TIME = datetime(2026, 1, 1, tzinfo=UTC)
 
 @dataclass(frozen=True)
 class LoadDataConfig:
-    """定义压测数据的规模、确定性种子与事务批次大小。"""
+    """定义压测数据的规模、确定性种子与写入批次大小。"""
 
     count: int = 10_000
     seed: int = 42
