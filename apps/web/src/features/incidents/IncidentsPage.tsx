@@ -9,6 +9,7 @@ import type { Incident } from '../../api/types'
 import { actionParameters } from '../overview/actionParameters'
 import { IncidentInspector } from './IncidentInspector'
 import { IncidentTable } from './IncidentTable'
+import { incidentSourceMeta } from './incidentSource'
 
 export default function IncidentsPage() {
   const { message } = App.useApp()
@@ -124,7 +125,7 @@ export default function IncidentsPage() {
         ]} />
         <Select aria-label="严重等级" value={filters.severity} allowClear placeholder="严重等级" style={{ width: 128 }} onChange={(value) => updateSearch({ severity: value })} options={['low', 'medium', 'high', 'critical'].map((value) => ({ value, label: value }))} />
         <Select aria-label="来源" value={filters.source} allowClear placeholder="来源" style={{ width: 128 }} onChange={(value) => updateSearch({ source: value })} options={[
-          { value: 'alert', label: '告警' }, { value: 'manual', label: '人工' },
+          { value: 'alert', label: '告警' }, { value: 'manual', label: '人工' }, { value: 'load-data', label: '批量加载数据' },
         ]} />
         <Input.Search key={filters.q} aria-label="关键字" defaultValue={filters.q} allowClear placeholder="搜索事件或根因节点" style={{ width: 220 }} onSearch={(value) => updateSearch({ q: value.trim() || undefined })} />
         <DatePicker.RangePicker aria-label="开始时间范围" showTime value={startedAtRange} onChange={(values) => updateSearch({
@@ -148,7 +149,7 @@ export default function IncidentsPage() {
     </Card>
     {visibleSelected ? <div>
       <Space className="incident-management-actions">
-        <Tag color={visibleSelected.source === 'manual' ? 'blue' : 'gold'}>{visibleSelected.source === 'manual' ? '人工事件' : '自动告警'}</Tag>
+        <Tag color={incidentSourceMeta(visibleSelected.source).color}>{incidentSourceMeta(visibleSelected.source).label}</Tag>
         <Button onClick={() => openEditor(visibleSelected)}>编辑处置</Button>
         <Button disabled={!visibleSelected.archived_at && visibleSelected.status !== 'resolved'} danger={!visibleSelected.archived_at} onClick={() => toggleArchive.mutate(visibleSelected)}>{visibleSelected.archived_at ? '恢复' : '归档'}</Button>
       </Space>

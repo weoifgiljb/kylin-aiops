@@ -45,7 +45,7 @@ test('requests the second incident page from the server', async () => {
 test('restores incident filters from the URL and resets the page when filters change', async () => {
   const user = userEvent.setup()
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  render(<MemoryRouter initialEntries={['/incidents?page=3&status=open&severity=critical&source=alert&q=load-node&started_from=2026-07-01T00%3A00%3A00Z&started_to=2026-07-02T00%3A00%3A00Z']}><QueryClientProvider client={client}><App><IncidentsPage /></App></QueryClientProvider></MemoryRouter>)
+  render(<MemoryRouter initialEntries={['/incidents?page=3&status=open&severity=critical&source=load-data&q=load-node&started_from=2026-07-01T00%3A00%3A00Z&started_to=2026-07-02T00%3A00%3A00Z']}><QueryClientProvider client={client}><App><IncidentsPage /></App></QueryClientProvider></MemoryRouter>)
 
   await screen.findByText('人工巡检异常')
   expect(api.incidents).toHaveBeenLastCalledWith(expect.objectContaining({
@@ -53,13 +53,14 @@ test('restores incident filters from the URL and resets the page when filters ch
     pageSize: 20,
     status: 'open',
     severity: 'critical',
-    source: 'alert',
+    source: 'load-data',
     q: 'load-node',
     started_from: '2026-07-01T00:00:00Z',
     started_to: '2026-07-02T00:00:00Z',
   }))
   expect(screen.getByDisplayValue(/2026-07-01/)).toBeInTheDocument()
   expect(screen.getByDisplayValue(/2026-07-02/)).toBeInTheDocument()
+  expect(screen.getByText('批量加载数据')).toBeInTheDocument()
 
   const search = screen.getByRole('searchbox', { name: '关键字' })
   await user.clear(search)
