@@ -827,6 +827,10 @@ def _register_incident_routes(app, sessions, require, expected_version, audit) -
         started_to: datetime | None = None,
         include_archived: bool = False,
     ) -> dict[str, Any]:
+        normalized_started_from = (
+            _query_time_as_utc(started_from, "started_from") if started_from else None
+        )
+        normalized_started_to = _query_time_as_utc(started_to, "started_to") if started_to else None
         with sessions() as session:
             statement = select(IncidentRow)
             if not include_archived:
@@ -841,13 +845,13 @@ def _register_incident_routes(app, sessions, require, expected_version, audit) -
                 statement = statement.where(
                     or_(IncidentRow.title.contains(q), IncidentRow.root_node_id.contains(q))
                 )
-            if started_from:
-                statement = statement.where(IncidentRow.started_at >= started_from)
-            if started_to:
-                statement = statement.where(IncidentRow.started_at <= started_to)
+            if normalized_started_from:
+                statement = statement.where(IncidentRow.started_at >= normalized_started_from)
+            if normalized_started_to:
+                statement = statement.where(IncidentRow.started_at <= normalized_started_to)
             result = page_scalars(
                 session,
-                statement.order_by(IncidentRow.started_at.desc()),
+                statement.order_by(IncidentRow.started_at.desc(), IncidentRow.id.desc()),
                 page,
                 page_size,
             )
@@ -1030,6 +1034,14 @@ def _get(session: Session, model, key, code: str, message: str):
 
 def _dt(value: datetime | None) -> str | None:
     return value.isoformat() if value is not None else None
+
+
+def _query_time_as_utc(value: datetime, field_name: str) -> datetime:
+    """将带时区的查询时间归一化为 UTC，避免 SQLite 与 PostgreSQL 比较语义不一致。"""
+
+    if value.tzinfo is None or value.utcoffset() is None:
+        raise ApiProblem(422, "TIMEZONE_REQUIRED", f"{field_name} 必须包含时区偏移")
+    return value.astimezone(UTC)
 
 
 def _user(row: UserRow) -> dict[str, Any]:

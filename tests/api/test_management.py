@@ -222,6 +222,111 @@ def test_incident_list_filters_by_severity_query_time_and_pagination(tmp_path: P
     assert empty.json()["total"] == 0
 
 
+def test_incident_list_normalizes_offset_time_filters_to_utc(tmp_path: Path) -> None:
+    client = management_client(tmp_path)
+    admin = login(client, "admin", "correct-horse-battery-staple")
+    with client.app.state.database.sessions() as session:
+        session.add_all(
+            [
+                IncidentRow(
+                    id="inc-utc-midnight",
+                    title="UTC 零点事件",
+                    fault_type="time_filter",
+                    severity="high",
+                    status="open",
+                    started_at=datetime(2026, 7, 22, 0, 0, tzinfo=UTC),
+                    ended_at=None,
+                    root_node_id=None,
+                    source="manual",
+                    assignee_user_id=None,
+                    handling_notes="",
+                    version=1,
+                    archived_at=None,
+                    archived_by=None,
+                ),
+                IncidentRow(
+                    id="inc-before-midnight",
+                    title="UTC 零点前事件",
+                    fault_type="time_filter",
+                    severity="high",
+                    status="open",
+                    started_at=datetime(2026, 7, 21, 23, 59, 59, tzinfo=UTC),
+                    ended_at=None,
+                    root_node_id=None,
+                    source="manual",
+                    assignee_user_id=None,
+                    handling_notes="",
+                    version=1,
+                    archived_at=None,
+                    archived_by=None,
+                ),
+            ]
+        )
+        session.commit()
+
+    exact = client.get(
+        "/api/v1/incidents",
+        headers=admin,
+        params={
+            "started_from": "2026-07-22T08:00:00+08:00",
+            "started_to": "2026-07-22T08:00:00+08:00",
+        },
+    )
+    before = client.get(
+        "/api/v1/incidents",
+        headers=admin,
+        params={"started_to": "2026-07-22T07:59:59+08:00"},
+    )
+    naive = client.get(
+        "/api/v1/incidents?started_from=2026-07-22T00:00:00",
+        headers=admin,
+    )
+
+    assert exact.status_code == 200
+    assert [item["id"] for item in exact.json()["items"]] == ["inc-utc-midnight"]
+    assert before.status_code == 200
+    assert [item["id"] for item in before.json()["items"]] == ["inc-before-midnight"]
+    assert naive.status_code == 422
+
+
+def test_incident_list_uses_id_as_stable_secondary_sort_key(tmp_path: Path) -> None:
+    client = management_client(tmp_path)
+    admin = login(client, "admin", "correct-horse-battery-staple")
+    with client.app.state.database.sessions() as session:
+        for incident_id in ("inc-tie-1", "inc-tie-2", "inc-tie-3"):
+            session.add(
+                IncidentRow(
+                    id=incident_id,
+                    title=incident_id,
+                    fault_type="stable_order",
+                    severity="medium",
+                    status="open",
+                    started_at=datetime(2026, 7, 22, 0, 0, tzinfo=UTC),
+                    ended_at=None,
+                    root_node_id=None,
+                    source="manual",
+                    assignee_user_id=None,
+                    handling_notes="",
+                    version=1,
+                    archived_at=None,
+                    archived_by=None,
+                )
+            )
+        session.commit()
+
+    pages = [
+        client.get(f"/api/v1/incidents?page={page}&page_size=1", headers=admin)
+        for page in (1, 2, 3)
+    ]
+
+    assert all(response.status_code == 200 for response in pages)
+    assert [response.json()["items"][0]["id"] for response in pages] == [
+        "inc-tie-3",
+        "inc-tie-2",
+        "inc-tie-1",
+    ]
+
+
 def test_node_list_filters_by_status_and_service_type_without_duplicates(tmp_path: Path) -> None:
     client = management_client(tmp_path)
     admin = login(client, "admin", "correct-horse-battery-staple")
