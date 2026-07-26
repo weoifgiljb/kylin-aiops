@@ -68,18 +68,17 @@ def seed_load_data(session: Session, config: LoadDataConfig) -> dict[str, int]:
             _upsert(session, insert, ServiceRow, service_rows)
             _upsert(session, insert, TelemetrySnapshotRow, telemetry_rows)
             _upsert(session, insert, IncidentRow, incident_rows)
-            if end == config.count:
-                session.add(
-                    _system_audit_log(
-                        action="system.load_data_seeded",
-                        details={
-                            "count": config.count,
-                            "seed": config.seed,
-                            "batch_size": config.batch_size,
-                        },
-                    )
-                )
-            session.commit()
+        session.add(
+            _system_audit_log(
+                action="system.load_data_seeded",
+                details={
+                    "requested_count": config.count,
+                    "seed": config.seed,
+                    "batch_size": config.batch_size,
+                },
+            )
+        )
+        session.commit()
     except Exception:
         session.rollback()
         raise

@@ -174,9 +174,40 @@ def test_seed_writes_one_system_audit_log(session: Session) -> None:
     assert len(audit_logs) == 1
     assert audit_logs[0].actor_id == "system"
     assert audit_logs[0].target == "load-data"
-    assert audit_logs[0].details == {"count": 5, "seed": 17, "batch_size": 2}
+    assert audit_logs[0].details == {"requested_count": 5, "seed": 17, "batch_size": 2}
     assert audit_logs[0].id
     assert audit_logs[0].request_id
+
+
+def test_seed_rolls_back_all_batches_when_a_later_batch_fails(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    original_upsert = load_data._upsert
+
+    def fail_later_batch(
+        database_session: Session,
+        insert: object,
+        model: type[object],
+        rows: object,
+    ) -> None:
+        if model is NodeRow and rows[0]["id"] == "load-node-000002":
+            raise RuntimeError("模拟后续批次写入失败")
+        original_upsert(database_session, insert, model, rows)
+
+    monkeypatch.setattr(load_data, "_upsert", fail_later_batch)
+
+    with pytest.raises(RuntimeError, match="后续批次"):
+        seed_load_data(session, LoadDataConfig(count=5, seed=42, batch_size=2))
+
+    assert table_counts(session) == {"nodes": 0, "services": 0, "telemetry": 0, "incidents": 0}
+    assert (
+        session.scalar(
+            select(func.count())
+            .select_from(AuditLogRow)
+            .where(AuditLogRow.action == "system.load_data_seeded")
+        )
+        == 0
+    )
 
 
 def test_seed_is_idempotent(session: Session) -> None:
@@ -278,6 +309,30 @@ def test_purge_writes_one_system_audit_log(session: Session) -> None:
         "telemetry": 3,
         "incidents": 3,
     }
+
+
+def test_purge_rolls_back_deletions_when_its_commit_fails(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seed_load_data(session, LoadDataConfig(count=3, seed=42, batch_size=2))
+
+    def fail_commit() -> None:
+        raise RuntimeError("模拟清理审计提交失败")
+
+    monkeypatch.setattr(session, "commit", fail_commit)
+
+    with pytest.raises(RuntimeError, match="审计提交"):
+        purge_load_data(session)
+
+    assert table_counts(session) == {"nodes": 3, "services": 3, "telemetry": 3, "incidents": 3}
+    assert (
+        session.scalar(
+            select(func.count())
+            .select_from(AuditLogRow)
+            .where(AuditLogRow.action == "system.load_data_purged")
+        )
+        == 0
+    )
 
 
 def test_purge_rejects_load_data_referenced_by_real_evidence(session: Session) -> None:
