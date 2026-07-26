@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { App, Button, Card, DatePicker, Empty, Form, Input, Modal, Select, Space, Tag } from 'antd'
-import { useMemo, useState } from 'react'
+import dayjs, { type Dayjs } from 'dayjs'
+import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
 import { ApiError, api } from '../../api/client'
@@ -23,6 +24,11 @@ export default function IncidentsPage() {
     started_from: searchParams.get('started_from') || undefined,
     started_to: searchParams.get('started_to') || undefined,
   }), [searchParams])
+  const startedAtRange = useMemo(() => {
+    if (!filters.started_from || !filters.started_to) return undefined
+    const range: [Dayjs, Dayjs] = [dayjs(filters.started_from), dayjs(filters.started_to)]
+    return range.every((value) => value.isValid()) ? range : undefined
+  }, [filters.started_from, filters.started_to])
   const { data } = useQuery({
     queryKey: ['incidents', page, pageSize, filters],
     queryFn: () => api.incidents({ page, pageSize, ...filters }),
@@ -33,6 +39,11 @@ export default function IncidentsPage() {
   const [form] = Form.useForm()
   const incidents = data?.items ?? []
   const visibleSelected = selected && incidents.some((incident) => incident.id === selected.id) ? selected : null
+  useEffect(() => {
+    if (!data || !selected || data.items.some((incident) => incident.id === selected.id)) return
+    const clearTimer = window.setTimeout(() => setSelected(null), 0)
+    return () => window.clearTimeout(clearTimer)
+  }, [data, selected])
   const refresh = () => void queryClient.invalidateQueries({ queryKey: ['incidents'] })
 
   function updateSearch(nextValues: Record<string, string | undefined>, resetPage = true) {
@@ -116,7 +127,7 @@ export default function IncidentsPage() {
           { value: 'alert', label: '告警' }, { value: 'manual', label: '人工' },
         ]} />
         <Input.Search key={filters.q} aria-label="关键字" defaultValue={filters.q} allowClear placeholder="搜索事件或根因节点" style={{ width: 220 }} onSearch={(value) => updateSearch({ q: value.trim() || undefined })} />
-        <DatePicker.RangePicker aria-label="开始时间范围" showTime onChange={(values) => updateSearch({
+        <DatePicker.RangePicker aria-label="开始时间范围" showTime value={startedAtRange} onChange={(values) => updateSearch({
           started_from: values?.[0]?.toISOString(),
           started_to: values?.[1]?.toISOString(),
         })} />

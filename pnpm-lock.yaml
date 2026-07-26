@@ -28,6 +28,9 @@ importers:
       antd:
         specifier: ^6.0.0
         version: 6.5.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      dayjs:
+        specifier: ^1.11.21
+        version: 1.11.21
       react:
         specifier: ^19.0.0
         version: 19.2.7

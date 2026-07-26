@@ -58,6 +58,8 @@ test('restores incident filters from the URL and resets the page when filters ch
     started_from: '2026-07-01T00:00:00Z',
     started_to: '2026-07-02T00:00:00Z',
   }))
+  expect(screen.getByDisplayValue(/2026-07-01/)).toBeInTheDocument()
+  expect(screen.getByDisplayValue(/2026-07-02/)).toBeInTheDocument()
 
   const search = screen.getByRole('searchbox', { name: '关键字' })
   await user.clear(search)
@@ -67,4 +69,31 @@ test('restores incident filters from the URL and resets the page when filters ch
     page: 1,
     q: 'node-02',
   })))
+})
+
+test('clears the selected incident when a refreshed result no longer contains it', async () => {
+  const user = userEvent.setup()
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const incident = {
+    id: 'inc-manual-1', title: '人工巡检异常', fault_type: 'manual_check', severity: 'medium',
+    status: 'open', source: 'manual', started_at: '2026-07-21T08:00:00Z', root_node: '',
+    assignee_user_id: null, handling_notes: '', version: 1, archived_at: null,
+    propagation_path: [], evidence: [], diagnosis: { summary: '等待诊断', root_cause: '', severity: 'medium', propagation_path: [], evidence_refs: [], recommended_steps: [], action_candidates: [], confidence: 0, source: 'deterministic_fallback' },
+  }
+  let items = [incident]
+  vi.mocked(api.incidents).mockImplementation(async () => ({ items, total: items.length, page: 1, page_size: 20 }))
+  render(<MemoryRouter><QueryClientProvider client={client}><App><IncidentsPage /></App></QueryClientProvider></MemoryRouter>)
+
+  await screen.findByText('人工巡检异常')
+  await user.click(screen.getByText('人工巡检异常'))
+  expect(screen.getByRole('button', { name: '编辑处置' })).toBeInTheDocument()
+
+  items = []
+  await client.invalidateQueries({ queryKey: ['incidents'] })
+  await waitFor(() => expect(screen.getByText('选择一个事件查看证据')).toBeInTheDocument())
+
+  items = [incident]
+  await client.invalidateQueries({ queryKey: ['incidents'] })
+  await screen.findAllByText('人工巡检异常')
+  expect(screen.queryByRole('button', { name: '编辑处置' })).not.toBeInTheDocument()
 })

@@ -17,6 +17,7 @@ test('serializes incident and node filter parameters', async () => {
   await api.incidents({
     page: 1,
     pageSize: 20,
+    includeArchived: true,
     status: 'open',
     severity: 'critical',
     source: 'alert',
@@ -27,7 +28,7 @@ test('serializes incident and node filter parameters', async () => {
   await api.nodes({ page: 1, pageSize: 20, status: 'online', service_type: 'nginx' })
 
   expect(fetchMock.mock.calls[0][0]).toContain(
-    '/api/v1/incidents?page=1&page_size=20&q=load-node&status=open&severity=critical&source=alert&started_from=2026-07-01T00%3A00%3A00Z&started_to=2026-07-02T00%3A00%3A00Z',
+    '/api/v1/incidents?page=1&page_size=20&include_archived=true&q=load-node&status=open&severity=critical&source=alert&started_from=2026-07-01T00%3A00%3A00Z&started_to=2026-07-02T00%3A00%3A00Z',
   )
   expect(fetchMock.mock.calls[1][0]).toContain(
     '/api/v1/resources/nodes?page=1&page_size=20&status=online&service_type=nginx',
