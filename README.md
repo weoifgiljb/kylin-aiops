@@ -59,4 +59,6 @@ pnpm lint:web
 pnpm build:web
 ```
 
+大规模分页和界面性能测试请参见[压测数据手册](docs/load-test-data.md)；仅可对隔离测试数据库执行数据注入。
+
 部署、安全边界和硬件验收见 [部署手册](docs/deployment.md) 与 [测试报告](docs/test-report.md)。提交代码前同时遵循 [CONTRIBUTING.md](CONTRIBUTING.md) 中的真实数据、注释和测试规范。
