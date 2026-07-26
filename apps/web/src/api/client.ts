@@ -30,6 +30,19 @@ export interface AuditLogParams extends ListParams {
   created_to?: string
 }
 
+export interface IncidentListParams extends ListParams {
+  status?: string
+  severity?: string
+  source?: string
+  started_from?: string
+  started_to?: string
+}
+
+export interface NodeListParams extends ListParams {
+  status?: string
+  service_type?: string
+}
+
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? ''
 let accessToken: string | null = null
 let refreshPromise: Promise<string> | null = null
@@ -108,6 +121,22 @@ function listQuery(params: ListParams): URLSearchParams {
   return query
 }
 
+function incidentQuery(params: IncidentListParams): URLSearchParams {
+  const query = listQuery(params)
+  for (const key of ['status', 'severity', 'source', 'started_from', 'started_to'] as const) {
+    if (params[key]) query.set(key, params[key])
+  }
+  return query
+}
+
+function nodeQuery(params: NodeListParams): URLSearchParams {
+  const query = listQuery(params)
+  for (const key of ['status', 'service_type'] as const) {
+    if (params[key]) query.set(key, params[key])
+  }
+  return query
+}
+
 export const api = {
   login: async (username: string, password: string) => {
     const body = new URLSearchParams({ username, password })
@@ -132,8 +161,8 @@ export const api = {
   me: () => request<CurrentUser>('/api/v1/auth/me', undefined, false),
   overview: () => request<Overview>('/api/v1/overview'),
   systemStatus: () => request<SystemStatus>('/api/v1/system/status'),
-  incidents: (params: ListParams) => request<Schemas['IncidentPage']>(
-    `/api/v1/incidents?${listQuery(params)}`,
+  incidents: (params: IncidentListParams) => request<Schemas['IncidentPage']>(
+    `/api/v1/incidents?${incidentQuery(params)}`,
   ),
   createIncident: (body: Schemas['IncidentCreate']) => request<Incident>('/api/v1/incidents', {
     method: 'POST', body: JSON.stringify(body),
@@ -178,8 +207,8 @@ export const api = {
   resetUserPassword: (id: string, version: number, password: string) => request<UserAccount>(`/api/v1/admin/users/${id}/reset-password`, {
     method: 'POST', headers: versionHeader(version), body: JSON.stringify({ password }),
   }),
-  nodes: (params: ListParams) => request<Schemas['NodePage']>(
-    `/api/v1/resources/nodes?${listQuery(params)}`,
+  nodes: (params: NodeListParams) => request<Schemas['NodePage']>(
+    `/api/v1/resources/nodes?${nodeQuery(params)}`,
   ),
   createNode: (body: Schemas['NodeCreate']) => request<ManagedNode>('/api/v1/resources/nodes', {
     method: 'POST', body: JSON.stringify(body),

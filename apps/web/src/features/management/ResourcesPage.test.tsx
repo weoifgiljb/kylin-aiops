@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import { vi } from 'vitest'
 
 import { api } from '../../api/client'
@@ -20,7 +21,7 @@ vi.mock('../../api/client', () => ({
 
 test('shows managed nodes and all resource categories', async () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  render(<QueryClientProvider client={client}><ResourcesPage /></QueryClientProvider>)
+  render(<MemoryRouter><QueryClientProvider client={client}><ResourcesPage /></QueryClientProvider></MemoryRouter>)
 
   expect(await screen.findByText('教学楼节点')).toBeInTheDocument()
   expect(screen.getByText('节点')).toBeInTheDocument()
@@ -33,7 +34,7 @@ test('shows managed nodes and all resource categories', async () => {
 test('normalizes tags when editing a node', async () => {
   const user = userEvent.setup()
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  render(<QueryClientProvider client={client}><ResourcesPage /></QueryClientProvider>)
+  render(<MemoryRouter><QueryClientProvider client={client}><ResourcesPage /></QueryClientProvider></MemoryRouter>)
 
   await screen.findByText('教学楼节点')
   await user.click(screen.getByRole('button', { name: /编\s*辑/ }))
@@ -47,4 +48,27 @@ test('normalizes tags when editing a node', async () => {
     1,
     expect.objectContaining({ tags: ['教学楼', 'ARM'] }),
   ))
+})
+
+test('uses node filters from the URL and clears them without affecting other tabs', async () => {
+  const user = userEvent.setup()
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  render(<MemoryRouter initialEntries={['/management/resources?tab=nodes&service_type=nginx&status=online']}><QueryClientProvider client={client}><ResourcesPage /></QueryClientProvider></MemoryRouter>)
+
+  await screen.findByText('教学楼节点')
+  expect(api.nodes).toHaveBeenLastCalledWith(expect.objectContaining({
+    page: 1,
+    pageSize: 20,
+    status: 'online',
+    service_type: 'nginx',
+  }))
+  expect(screen.getByText('当前筛选：服务类型 nginx，状态 online')).toBeInTheDocument()
+
+  await user.click(screen.getByRole('button', { name: '清除筛选' }))
+
+  await waitFor(() => expect(api.nodes).toHaveBeenLastCalledWith({
+    page: 1,
+    pageSize: 20,
+    includeArchived: false,
+  }))
 })

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button, Card, Checkbox, Form, Input, message, Modal, Select, Space, Switch, Table, Tabs, Tag } from 'antd'
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 
 import { ApiError, api } from '../../api/client'
 import type { ManagedNode, Service, ServiceDependency } from '../../api/types'
@@ -10,8 +11,12 @@ type ResourceKind = 'node' | 'service' | 'dependency'
 
 export default function ResourcesPage() {
   const queryClient = useQueryClient()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [includeArchived, setIncludeArchived] = useState(false)
-  const [activeKind, setActiveKind] = useState<ResourceKind>('node')
+  const [activeKind, setActiveKind] = useState<ResourceKind>(() => {
+    const tab = searchParams.get('tab')
+    return tab === 'services' ? 'service' : tab === 'dependencies' ? 'dependency' : 'node'
+  })
   const [pages, setPages] = useState<Record<ResourceKind, { page: number; pageSize: number }>>({
     node: { page: 1, pageSize: 20 },
     service: { page: 1, pageSize: 20 },
@@ -20,9 +25,13 @@ export default function ResourcesPage() {
   const [editor, setEditor] = useState<{ kind: ResourceKind; record?: ManagedNode | Service | ServiceDependency } | null>(null)
   const [candidateSearch, setCandidateSearch] = useState('')
   const [form] = Form.useForm()
+  const nodeFilters = {
+    status: searchParams.get('status') || undefined,
+    service_type: searchParams.get('service_type') || undefined,
+  }
   const nodes = useQuery({
-    queryKey: ['managed-nodes', includeArchived, pages.node],
-    queryFn: () => api.nodes({ ...pages.node, includeArchived }),
+    queryKey: ['managed-nodes', includeArchived, pages.node, nodeFilters],
+    queryFn: () => api.nodes({ ...pages.node, includeArchived, ...nodeFilters }),
     enabled: activeKind === 'node',
   })
   const services = useQuery({
@@ -50,6 +59,22 @@ export default function ResourcesPage() {
     void queryClient.invalidateQueries({ queryKey: ['managed-nodes'] })
     void queryClient.invalidateQueries({ queryKey: ['managed-services'] })
     void queryClient.invalidateQueries({ queryKey: ['managed-dependencies'] })
+  }
+
+  function clearNodeFilters() {
+    const next = new URLSearchParams(searchParams)
+    next.delete('status')
+    next.delete('service_type')
+    setSearchParams(next)
+    setPages((previous) => ({ ...previous, node: { ...previous.node, page: 1 } }))
+  }
+
+  function changeTab(key: string) {
+    const kind = key as ResourceKind
+    const next = new URLSearchParams(searchParams)
+    next.set('tab', kind === 'node' ? 'nodes' : kind === 'service' ? 'services' : 'dependencies')
+    setSearchParams(next)
+    setActiveKind(kind)
   }
 
   const showError = (error: unknown) => void message.error(
@@ -189,7 +214,7 @@ export default function ResourcesPage() {
   ]
 
   const tabs = [
-    { key: 'node', label: '节点', children: <><Button type="primary" onClick={() => openEditor('node')}>新增节点</Button><Table rowKey="id" loading={nodes.isLoading} dataSource={nodes.data?.items ?? []} columns={nodeColumns} pagination={pagination('node', nodes.data?.total ?? 0)} /></> },
+    { key: 'node', label: '节点', children: <><Space wrap><Button type="primary" onClick={() => openEditor('node')}>新增节点</Button>{nodeFilters.service_type || nodeFilters.status ? <><Tag color="blue">当前筛选：{[nodeFilters.service_type && `服务类型 ${nodeFilters.service_type}`, nodeFilters.status && `状态 ${nodeFilters.status}`].filter(Boolean).join('，')}</Tag><Button onClick={clearNodeFilters}>清除筛选</Button></> : null}</Space><Table rowKey="id" loading={nodes.isLoading} dataSource={nodes.data?.items ?? []} columns={nodeColumns} pagination={pagination('node', nodes.data?.total ?? 0)} /></> },
     { key: 'service', label: '服务', children: <><Button type="primary" onClick={() => openEditor('service')}>新增服务</Button><Table rowKey="id" loading={services.isLoading} dataSource={services.data?.items ?? []} columns={serviceColumns} pagination={pagination('service', services.data?.total ?? 0)} /></> },
     { key: 'dependency', label: '依赖关系', children: <><Button type="primary" onClick={() => openEditor('dependency')}>新增依赖</Button><Table rowKey="id" loading={dependencies.isLoading} dataSource={dependencies.data?.items ?? []} columns={dependencyColumns} pagination={pagination('dependency', dependencies.data?.total ?? 0)} /></> },
   ]
@@ -202,7 +227,7 @@ export default function ResourcesPage() {
       dependency: { ...previous.dependency, page: 1 },
     }))
   }}>显示已归档</Checkbox>}>
-    <Tabs activeKey={activeKind} onChange={(key) => setActiveKind(key as ResourceKind)} items={tabs} />
+    <Tabs activeKey={activeKind} onChange={changeTab} items={tabs} />
     <Modal open={Boolean(editor)} title={editor?.record ? '编辑资源' : '新增资源'} confirmLoading={save.isPending} onCancel={() => setEditor(null)} onOk={() => void form.validateFields().then((values) => save.mutate(values))}>
       <Form form={form} layout="vertical">
         {editor && editor.kind !== 'dependency' && !editor.record ? <Form.Item label="标识" name="id" rules={[{ required: true }]}><Input /></Form.Item> : null}
