@@ -14,6 +14,7 @@ import httpx
 from fastapi import Depends, FastAPI, Query, Request, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordBearer
 from kylin_aiops_diagnosis.mindie import MindIEClient
@@ -93,6 +94,7 @@ ACTION_RULES: dict[str, dict[str, Any]] = {
 }
 SAFE_EXPERIMENT_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 SAFE_INTERFACE = re.compile(r"^(eth|ens|enp)[A-Za-z0-9_.-]{1,31}$")
+LOCAL_WEB_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
 
 def valid_action_parameters(action_name: str, parameters: dict[str, Any]) -> bool:
@@ -159,6 +161,13 @@ def create_app(
     """创建中心 API，并允许测试注入数据库、密钥和外部状态探针。"""
 
     app = FastAPI(title="Kylin AIOps API", version="0.2.0")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=LOCAL_WEB_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["*"],
+    )
     redis_url = os.getenv("REDIS_URL")
     configured_database_url = database_url or os.getenv("DATABASE_URL")
     configured_secret = jwt_secret or os.getenv("JWT_SECRET", "")

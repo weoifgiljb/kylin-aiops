@@ -52,6 +52,26 @@ def test_default_application_starts_in_live_mode() -> None:
     assert overview["active_incidents"] == 0
 
 
+def test_local_web_origin_receives_cors_response_header() -> None:
+    response = TestClient(create_app()).get(
+        "/healthz",
+        headers={"Origin": "http://localhost:5173"},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
+
+
+def test_untrusted_origin_does_not_receive_cors_response_header() -> None:
+    response = TestClient(create_app()).get(
+        "/healthz",
+        headers={"Origin": "https://untrusted.example"},
+    )
+
+    assert response.status_code == 200
+    assert "access-control-allow-origin" not in response.headers
+
+
 def test_system_status_reports_actual_downstream_backends(monkeypatch) -> None:
     monkeypatch.setenv("MODEL_SERVICE_URL", "http://model-service:8001")
     monkeypatch.setenv("MINDIE_BASE_URL", "http://127.0.0.1:11434")
