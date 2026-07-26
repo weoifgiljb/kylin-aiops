@@ -1,9 +1,10 @@
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 from kylin_aiops_api.auth import seed_admin
-from kylin_aiops_api.database import Base
+from kylin_aiops_api.database import Base, IncidentRow, NodeRow
 from kylin_aiops_api.main import create_app
 from sqlalchemy import create_engine, event
 
@@ -158,6 +159,120 @@ def test_incident_list_uses_bounded_business_queries(tmp_path: Path) -> None:
     assert response.status_code == 200
     assert len(response.json()["items"]) == 20
     assert len(statements) <= 4
+
+
+def test_incident_list_filters_by_severity_query_time_and_pagination(tmp_path: Path) -> None:
+    client = management_client(tmp_path)
+    admin = login(client, "admin", "correct-horse-battery-staple")
+    for node_id in ("edge-01", "core-01", "storage-01"):
+        response = client.post(
+            "/api/v1/resources/nodes",
+            headers=admin,
+            json={"id": node_id, "display_name": node_id},
+        )
+        assert response.status_code == 201
+
+    incident_ids: list[str] = []
+    for title, severity, node_id in (
+        ("边缘节点网络异常", "high", "edge-01"),
+        ("edge 服务响应缓慢", "high", "core-01"),
+        ("edge 存储告警", "low", "storage-01"),
+        ("核心节点网络异常", "high", "core-01"),
+    ):
+        response = client.post(
+            "/api/v1/incidents",
+            headers=admin,
+            json={
+                "title": title,
+                "fault_type": "filter_test",
+                "severity": severity,
+                "root_node_id": node_id,
+            },
+        )
+        assert response.status_code == 201
+        incident_ids.append(response.json()["id"])
+
+    with client.app.state.database.sessions() as session:
+        started_at = (
+            datetime(2026, 7, 22, 10, 0, tzinfo=UTC),
+            datetime(2026, 7, 22, 11, 0, tzinfo=UTC),
+            datetime(2026, 7, 22, 12, 0, tzinfo=UTC),
+            datetime(2026, 7, 25, 10, 0, tzinfo=UTC),
+        )
+        for incident_id, value in zip(incident_ids, started_at, strict=True):
+            session.get(IncidentRow, incident_id).started_at = value
+        session.commit()
+
+    filters = (
+        "severity=high&q=edge&started_from=2026-07-22T00:00:00Z&started_to=2026-07-22T23:59:59Z"
+    )
+    first = client.get(f"/api/v1/incidents?{filters}&page=1&page_size=1", headers=admin)
+    second = client.get(f"/api/v1/incidents?{filters}&page=2&page_size=1", headers=admin)
+    empty = client.get(
+        "/api/v1/incidents?severity=critical&q=missing&started_from=2026-07-22T00:00:00Z",
+        headers=admin,
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json()["total"] == 2
+    assert second.json()["total"] == 2
+    assert [first.json()["items"][0]["id"], second.json()["items"][0]["id"]] == incident_ids[1::-1]
+    assert empty.json()["items"] == []
+    assert empty.json()["total"] == 0
+
+
+def test_node_list_filters_by_status_and_service_type_without_duplicates(tmp_path: Path) -> None:
+    client = management_client(tmp_path)
+    admin = login(client, "admin", "correct-horse-battery-staple")
+    for node_id in ("node-api-a", "node-api-b", "node-db"):
+        response = client.post(
+            "/api/v1/resources/nodes",
+            headers=admin,
+            json={"id": node_id, "display_name": node_id},
+        )
+        assert response.status_code == 201
+    for service_id, node_id, service_type in (
+        ("api-a-1", "node-api-a", "api"),
+        ("api-a-2", "node-api-a", "api"),
+        ("api-b-1", "node-api-b", "api"),
+        ("db-1", "node-db", "database"),
+    ):
+        response = client.post(
+            "/api/v1/resources/services",
+            headers=admin,
+            json={
+                "id": service_id,
+                "node_id": node_id,
+                "name": service_id,
+                "service_type": service_type,
+            },
+        )
+        assert response.status_code == 201
+
+    with client.app.state.database.sessions() as session:
+        session.get(NodeRow, "node-api-a").status = "online"
+        session.get(NodeRow, "node-api-b").status = "online"
+        session.get(NodeRow, "node-db").status = "offline"
+        session.commit()
+
+    first = client.get(
+        "/api/v1/resources/nodes?status=online&service_type=api&page=1&page_size=1",
+        headers=admin,
+    )
+    second = client.get(
+        "/api/v1/resources/nodes?status=online&service_type=api&page=2&page_size=1",
+        headers=admin,
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json()["total"] == 2
+    assert second.json()["total"] == 2
+    assert {first.json()["items"][0]["id"], second.json()["items"][0]["id"]} == {
+        "node-api-a",
+        "node-api-b",
+    }
 
 
 def test_password_reset_revokes_sessions_and_last_admin_is_protected(tmp_path: Path) -> None:

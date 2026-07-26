@@ -393,6 +393,8 @@ def _register_resource_routes(app, sessions, require, expected_version, audit) -
         page: int = Query(default=1, ge=1),
         page_size: int = Query(default=20, ge=1, le=100),
         q: str | None = None,
+        status: str | None = None,
+        service_type: str | None = None,
         include_archived: bool = False,
     ) -> dict[str, Any]:
         with sessions() as session:
@@ -402,6 +404,17 @@ def _register_resource_routes(app, sessions, require, expected_version, audit) -
             if q:
                 statement = statement.where(
                     or_(NodeRow.id.contains(q), NodeRow.display_name.contains(q))
+                )
+            if status:
+                statement = statement.where(NodeRow.status == status)
+            if service_type:
+                statement = statement.where(
+                    NodeRow.id.in_(
+                        select(ServiceRow.node_id).where(
+                            ServiceRow.service_type == service_type,
+                            ServiceRow.archived_at.is_(None),
+                        )
+                    )
                 )
             result = page_scalars(session, statement.order_by(NodeRow.id), page, page_size)
             return page_response(
@@ -808,6 +821,10 @@ def _register_incident_routes(app, sessions, require, expected_version, audit) -
         page_size: int = Query(default=20, ge=1, le=100),
         status: str | None = None,
         source: str | None = None,
+        severity: str | None = None,
+        q: str | None = None,
+        started_from: datetime | None = None,
+        started_to: datetime | None = None,
         include_archived: bool = False,
     ) -> dict[str, Any]:
         with sessions() as session:
@@ -818,6 +835,16 @@ def _register_incident_routes(app, sessions, require, expected_version, audit) -
                 statement = statement.where(IncidentRow.status == status)
             if source:
                 statement = statement.where(IncidentRow.source == source)
+            if severity:
+                statement = statement.where(IncidentRow.severity == severity)
+            if q:
+                statement = statement.where(
+                    or_(IncidentRow.title.contains(q), IncidentRow.root_node_id.contains(q))
+                )
+            if started_from:
+                statement = statement.where(IncidentRow.started_at >= started_from)
+            if started_to:
+                statement = statement.where(IncidentRow.started_at <= started_to)
             result = page_scalars(
                 session,
                 statement.order_by(IncidentRow.started_at.desc()),
