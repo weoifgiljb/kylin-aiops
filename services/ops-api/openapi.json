@@ -616,8 +616,10 @@
                   "type": "null"
                 }
               ],
+              "description": "服务类型；`unassigned` 表示没有有效服务的节点。",
               "title": "Service Type"
-            }
+            },
+            "description": "服务类型；`unassigned` 表示没有有效服务的节点。"
           },
           {
             "name": "include_archived",

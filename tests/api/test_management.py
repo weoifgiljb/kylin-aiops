@@ -380,6 +380,48 @@ def test_node_list_filters_by_status_and_service_type_without_duplicates(tmp_pat
     }
 
 
+def test_node_list_unassigned_service_filter_matches_overview_group(tmp_path: Path) -> None:
+    client = management_client(tmp_path)
+    admin = login(client, "admin", "correct-horse-battery-staple")
+    for node_id in ("node-unassigned", "node-api"):
+        response = client.post(
+            "/api/v1/resources/nodes",
+            headers=admin,
+            json={"id": node_id, "display_name": node_id},
+        )
+        assert response.status_code == 201
+    response = client.post(
+        "/api/v1/resources/services",
+        headers=admin,
+        json={
+            "id": "api-1",
+            "node_id": "node-api",
+            "name": "api-1",
+            "service_type": "api",
+        },
+    )
+    assert response.status_code == 201
+    with client.app.state.database.sessions() as session:
+        session.get(NodeRow, "node-unassigned").status = "online"
+        session.get(NodeRow, "node-api").status = "online"
+        session.commit()
+
+    overview = client.get("/api/v1/overview", headers=admin)
+    unassigned = client.get(
+        "/api/v1/resources/nodes?status=online&service_type=unassigned",
+        headers=admin,
+    )
+
+    assert overview.status_code == 200
+    assert unassigned.status_code == 200
+    assert {
+        (group["service"], group["status"], group["count"])
+        for group in overview.json()["topology_groups"]
+    } >= {("unassigned", "online", 1)}
+    assert unassigned.json()["total"] == 1
+    assert [item["id"] for item in unassigned.json()["items"]] == ["node-unassigned"]
+
+
 def test_password_reset_revokes_sessions_and_last_admin_is_protected(tmp_path: Path) -> None:
     client = management_client(tmp_path)
     admin = login(client, "admin", "correct-horse-battery-staple")

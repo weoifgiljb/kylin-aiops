@@ -394,7 +394,10 @@ def _register_resource_routes(app, sessions, require, expected_version, audit) -
         page_size: int = Query(default=20, ge=1, le=100),
         q: str | None = None,
         status: str | None = None,
-        service_type: str | None = None,
+        service_type: str | None = Query(
+            default=None,
+            description="服务类型；`unassigned` 表示没有有效服务的节点。",
+        ),
         include_archived: bool = False,
     ) -> dict[str, Any]:
         with sessions() as session:
@@ -408,14 +411,19 @@ def _register_resource_routes(app, sessions, require, expected_version, audit) -
             if status:
                 statement = statement.where(NodeRow.status == status)
             if service_type:
-                statement = statement.where(
-                    NodeRow.id.in_(
-                        select(ServiceRow.node_id).where(
-                            ServiceRow.service_type == service_type,
-                            ServiceRow.archived_at.is_(None),
+                active_service_nodes = select(ServiceRow.node_id).where(
+                    ServiceRow.archived_at.is_(None),
+                )
+                if service_type == "unassigned":
+                    statement = statement.where(
+                        NodeRow.id.not_in(active_service_nodes)
+                    )
+                else:
+                    statement = statement.where(
+                        NodeRow.id.in_(
+                            active_service_nodes.where(ServiceRow.service_type == service_type)
                         )
                     )
-                )
             result = page_scalars(session, statement.order_by(NodeRow.id), page, page_size)
             return page_response(
                 [_node(row) for row in result.items],

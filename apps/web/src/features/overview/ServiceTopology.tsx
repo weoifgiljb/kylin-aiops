@@ -4,6 +4,7 @@ import { Empty } from 'antd'
 import '@xyflow/react/dist/style.css'
 
 import type { NodeInfo, TopologyEdge, TopologyGroup, TopologyGroupEdge } from '../../api/types'
+import { topologyGroupEdgeId } from './topologyEdgeId'
 
 const stateColors = {
   root: '#ef4444',
@@ -107,12 +108,12 @@ export function ServiceTopology({
     style: { borderColor: group.status === 'online' ? stateColors.normal : '#94a3b8' },
   }))
   const aggregatePrimaryGroupIds = primaryGroupIds(topologyGroups)
-  const aggregateFlowEdges: Edge[] = topologyGroupEdges.flatMap((edge, index) => {
+  const aggregateFlowEdges: Edge[] = topologyGroupEdges.flatMap((edge) => {
     const source = aggregatePrimaryGroupIds.get(edge.source_service)
     const target = aggregatePrimaryGroupIds.get(edge.target_service)
     if (!source || !target) return []
     return [{
-      id: `group-edge-${index}`,
+      id: topologyGroupEdgeId(edge.source_service, edge.target_service),
       source,
       target,
       label: `${edge.count.toLocaleString('zh-CN')} 条依赖`,

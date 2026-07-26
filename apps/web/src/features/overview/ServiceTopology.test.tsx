@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { vi } from 'vitest'
 
 import { ServiceTopology } from './ServiceTopology'
+import { topologyGroupEdgeId } from './topologyEdgeId'
 
 test('拓扑节点和图例使用一致的根因、传播中、正常配色', () => {
   const { container } = render(
@@ -76,4 +77,17 @@ test('聚合拓扑仅渲染服务状态摘要，并将点击条件交给调用�
   expect(onSelectGroup).toHaveBeenCalledWith({ service: 'nginx', status: 'online' })
   expect(screen.getByText('Java 服务')).toBeInTheDocument()
   expect(screen.queryByText('physical-node')).not.toBeInTheDocument()
+})
+
+test('聚合依赖边使用服务对生成的稳定 ID，不受响应排序影响', () => {
+  const originalOrder = [
+    ['nginx', 'java'],
+    ['java', 'mysql'],
+  ] as const
+  const reordered = [...originalOrder].reverse()
+
+  expect(originalOrder.map(([source, target]) => topologyGroupEdgeId(source, target)).sort()).toEqual(
+    reordered.map(([source, target]) => topologyGroupEdgeId(source, target)).sort(),
+  )
+  expect(topologyGroupEdgeId('nginx', 'java')).toBe('group-edge-%5B%22nginx%22%2C%22java%22%5D')
 })
