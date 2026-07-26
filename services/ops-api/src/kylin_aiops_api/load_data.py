@@ -1,5 +1,6 @@
 """提供可重复执行且可安全清理的压测演示数据。"""
 
+import uuid
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -13,6 +14,7 @@ from sqlalchemy.orm import InstrumentedAttribute, Session
 from kylin_aiops_api.database import (
     ActionRequestRow,
     AgentCredentialRow,
+    AuditLogRow,
     DependencyEdgeRow,
     DiagnosisRow,
     EvidenceRow,
@@ -66,6 +68,17 @@ def seed_load_data(session: Session, config: LoadDataConfig) -> dict[str, int]:
             _upsert(session, insert, ServiceRow, service_rows)
             _upsert(session, insert, TelemetrySnapshotRow, telemetry_rows)
             _upsert(session, insert, IncidentRow, incident_rows)
+            if end == config.count:
+                session.add(
+                    _system_audit_log(
+                        action="system.load_data_seeded",
+                        details={
+                            "count": config.count,
+                            "seed": config.seed,
+                            "batch_size": config.batch_size,
+                        },
+                    )
+                )
             session.commit()
     except Exception:
         session.rollback()
@@ -98,12 +111,26 @@ def purge_load_data(session: Session) -> dict[str, int]:
         )
         session.execute(delete(ServiceRow).where(_has_prefix(ServiceRow.id, LOAD_SERVICE_PREFIX)))
         session.execute(delete(NodeRow).where(_has_prefix(NodeRow.id, LOAD_NODE_PREFIX)))
+        session.add(_system_audit_log(action="system.load_data_purged", details=counts))
         session.commit()
     except Exception:
         session.rollback()
         raise
 
     return counts
+
+
+def _system_audit_log(action: str, details: dict[str, int]) -> AuditLogRow:
+    """为整次压测数据操作生成一条不含业务敏感信息的系统审计记录。"""
+    return AuditLogRow(
+        id=str(uuid.uuid4()),
+        actor_id="system",
+        action=action,
+        target="load-data",
+        request_id=str(uuid.uuid4()),
+        details=details,
+        created_at=datetime.now(UTC),
+    )
 
 
 def _build_batch(

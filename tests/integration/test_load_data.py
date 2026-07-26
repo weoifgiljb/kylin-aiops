@@ -10,6 +10,7 @@ from types import SimpleNamespace
 import pytest
 from kylin_aiops_api import load_data
 from kylin_aiops_api.database import (
+    AuditLogRow,
     Base,
     EvidenceRow,
     IncidentRow,
@@ -161,6 +162,23 @@ def test_seed_creates_each_required_type(session: Session) -> None:
     )
 
 
+def test_seed_writes_one_system_audit_log(session: Session) -> None:
+    config = LoadDataConfig(count=5, seed=17, batch_size=2)
+
+    counts = seed_load_data(session, config)
+
+    audit_logs = session.scalars(
+        select(AuditLogRow).where(AuditLogRow.action == "system.load_data_seeded")
+    ).all()
+    assert counts == {"nodes": 5, "services": 5, "telemetry": 5, "incidents": 5}
+    assert len(audit_logs) == 1
+    assert audit_logs[0].actor_id == "system"
+    assert audit_logs[0].target == "load-data"
+    assert audit_logs[0].details == {"count": 5, "seed": 17, "batch_size": 2}
+    assert audit_logs[0].id
+    assert audit_logs[0].request_id
+
+
 def test_seed_is_idempotent(session: Session) -> None:
     config = LoadDataConfig(count=10, seed=42, batch_size=4)
 
@@ -241,6 +259,27 @@ def test_purge_preserves_non_load_records(session: Session) -> None:
     assert table_counts(session) == {"nodes": 1, "services": 1, "telemetry": 1, "incidents": 1}
 
 
+def test_purge_writes_one_system_audit_log(session: Session) -> None:
+    seed_load_data(session, LoadDataConfig(count=3, seed=42, batch_size=2))
+
+    counts = purge_load_data(session)
+
+    audit_logs = session.scalars(
+        select(AuditLogRow).where(AuditLogRow.action == "system.load_data_purged")
+    ).all()
+    assert counts == {"nodes": 3, "services": 3, "telemetry": 3, "incidents": 3}
+    assert table_counts(session) == {"nodes": 0, "services": 0, "telemetry": 0, "incidents": 0}
+    assert len(audit_logs) == 1
+    assert audit_logs[0].actor_id == "system"
+    assert audit_logs[0].target == "load-data"
+    assert audit_logs[0].details == {
+        "nodes": 3,
+        "services": 3,
+        "telemetry": 3,
+        "incidents": 3,
+    }
+
+
 def test_purge_rejects_load_data_referenced_by_real_evidence(session: Session) -> None:
     seed_load_data(session, LoadDataConfig(count=2, seed=42, batch_size=2))
     session.add(
@@ -279,6 +318,14 @@ def test_purge_rejects_load_data_referenced_by_real_evidence(session: Session) -
 
     assert table_counts(session) == {"nodes": 3, "services": 2, "telemetry": 2, "incidents": 2}
     assert session.get(EvidenceRow, "real-evidence-01") is not None
+    assert (
+        session.scalar(
+            select(func.count())
+            .select_from(AuditLogRow)
+            .where(AuditLogRow.action == "system.load_data_purged")
+        )
+        == 0
+    )
 
 
 def test_purge_rejects_real_service_on_load_node(session: Session) -> None:
