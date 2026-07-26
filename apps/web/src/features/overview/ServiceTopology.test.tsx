@@ -57,9 +57,7 @@ test('聚合拓扑仅渲染服务状态摘要，并将点击条件交给调用�
 
   render(
     <ServiceTopology
-      nodes={[
-        { id: 'physical-node', hostname: 'physical-node', status: 'online', service: 'nginx' },
-      ]}
+      nodes={[]}
       topology={[]}
       topologyGroups={[
         { id: 'nginx:online', service: 'nginx', status: 'online', count: 6667 },
@@ -76,7 +74,24 @@ test('聚合拓扑仅渲染服务状态摘要，并将点击条件交给调用�
 
   expect(onSelectGroup).toHaveBeenCalledWith({ service: 'nginx', status: 'online' })
   expect(screen.getByText('Java 服务')).toBeInTheDocument()
-  expect(screen.queryByText('physical-node')).not.toBeInTheDocument()
+})
+
+test('小规模概览即使携带聚合摘要也保留物理拓扑', () => {
+  render(
+    <ServiceTopology
+      nodes={[
+        { id: 'physical-node', hostname: 'physical-node', status: 'online', service: 'nginx' },
+      ]}
+      topology={[]}
+      topologyGroups={[
+        { id: 'nginx:online', service: 'nginx', status: 'online', count: 1 },
+      ]}
+      topologyGroupEdges={[]}
+    />,
+  )
+
+  expect(screen.getByText('physical-node')).toBeInTheDocument()
+  expect(screen.queryByText('服务状态摘要')).not.toBeInTheDocument()
 })
 
 test('聚合依赖边使用服务对生成的稳定 ID，不受响应排序影响', () => {

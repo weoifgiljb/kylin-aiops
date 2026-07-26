@@ -62,7 +62,7 @@ export function ServiceTopology({
   propagationPath = [],
   onSelectGroup,
 }: Props) {
-  const hasAggregateTopology = topologyGroups.length > 0 || topologyGroupEdges.length > 0
+  const hasAggregateTopology = nodes.length === 0 && topologyGroups.length > 0
   const propagationNodes = new Set(propagationPath)
   const physicalFlowNodes: Node[] = nodes.map((node, index) => {
     const state = node.id === rootNode ? 'root' : propagationNodes.has(node.id) ? 'propagating' : 'normal'
