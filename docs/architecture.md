@@ -42,3 +42,9 @@ SQLAlchemy 定义了节点、服务、依赖边、事件、证据、诊断、动
 未设置 `DATABASE_URL` 时，`InMemoryStore` 仅用于单元测试和演示。设置 `DATABASE_URL` 后，PostgreSQL 是唯一业务状态源，所有查询和增量写入直接针对数据库行，不加载或全量回写进程内快照。遥测表按节点保存最新快照，只更新观测字段，不覆盖名称、描述、标签等人工配置。
 
 设置 `REDIS_URL` 后，每个节点使用独立的 Redis List，Agent 通过原子 `LPOP` 只取走自身动作，避免扫描其他节点队列。React 控制台通过 React Query 每 15 秒轮询概览和事件；管理列表按需请求并使用数据库分页。本实现保留单中心、至多一次动作交付语义，不包含跨地域复制或 Agent 崩溃后的动作重投协议。
+
+## 超级互联与远程桌面
+
+- **超级互联（主能力）**：节点 `ops-agent` 主动 mTLS + 中心 FastAPI/Redis 签名动作通道，见 [super-interconnect.md](./super-interconnect.md)。
+- **远程桌面**：本期未实现；二期可选方案定为 **WebRTC 桌面流**（控制面会话票+信令，媒体不经业务 API）。**不以 Guacd 为主路径**。
+
